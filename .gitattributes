@@ -1,0 +1,6 @@
+###############################################################################
+# Set default behavior to line feed line endings
+# ( ~~automatically normalize line endings~~ ).
+###############################################################################
+#* text=auto
+* text eol=lf
