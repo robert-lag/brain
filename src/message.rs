@@ -1,5 +1,4 @@
 use colored::*;
-use std::io::Error;
 
 pub struct Message;
 impl Message {
@@ -7,12 +6,12 @@ impl Message {
         println!("{} {}", "error:".bold().red(), message);
     }
 
-    pub fn error_from(error: Error) {
-        println!("{} {}", "error:".bold().red(), error);
-    }
-
     pub fn warning(message: &str) {
         println!("{} {}", "warning:".bold().yellow(), message);
+    }
+
+    pub fn hint(message: &str) {
+        println!("{} {}", "hint:".bold().yellow(), message);
     }
 
     pub fn example(message: &str) {

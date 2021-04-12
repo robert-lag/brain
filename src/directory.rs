@@ -1,29 +1,31 @@
-#[path = "message.rs"]
-mod message;
-
-use message::Message;
-
-use colored::*;
+use crate::message::Message;
 use std::fs;
 use std::path::{ Path, PathBuf };
 use walkdir::WalkDir;
 
 pub struct Directory;
 impl Directory {
-    pub fn is_zettelkasten_dir(directory: &str) -> bool {
+    pub fn is_zettelkasten_dir(directory: &str, hide_error_messages: bool) -> bool {
         if Path::new(directory).join(".zettelkasten").exists() {
             return true;
         } else {
-            Message::error(&format!("the specified path is not zettelkasten directory: '{}'\n\
-                {} Use the 'init' subcommand to initialize a zettelkasten directory.",
-                directory, "hint:".bold().yellow()));
+            if !hide_error_messages {
+                Message::error(&format!("the specified path is not zettelkasten directory: '{}'", directory));
+                Message::hint("use the 'init' subcommand to initialize a zettelkasten directory");
+            }
             return false;
         }
     }
 
-    pub fn copy (source_dir: &str, target_dir: &str) {
+    pub fn copy(source_dir: &str, target_dir: &str) {
         for entry in WalkDir::new(source_dir) {
-            let entry = entry.unwrap();
+            let entry = match entry {
+                Ok(value) => value,
+                Err(error) => {
+                    Message::error(&format!("couldn't iterate through directory '{}': '{}'", source_dir, error));
+                    return;
+                }
+            };
             let file_name = entry.file_name();
             let target_path = Path::new(target_dir).join(file_name);
             let source_path = entry.path().as_os_str();

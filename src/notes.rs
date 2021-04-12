@@ -1,10 +1,7 @@
-#[path = "database.rs"]
-mod database;
-#[path = "message.rs"]
-mod message;
-
-use database::Database;
-use message::Message;
+use crate::database::Database;
+use crate::message::Message;
+use crate::note_property::NoteProperty;
+use crate::note::Note;
 
 use chrono::prelude::*;
 use colored::*;
@@ -19,28 +16,12 @@ use yaml_rust::{ YamlLoader, Yaml };
 pub struct Notes;
 impl Notes {
     pub fn list(count: i32) {
-        let note_names = Database::get_all_recent_note_names(count);
+        let note_ids = Database::get_all_recent_note_ids(count);
 
-        for note_name in note_names {
-            let note_id = Database::get_note_id_where(&format!("note_name = '{}'", note_name)).unwrap();
-            println!("{} {}", note_id.yellow(), note_name);
+        for note_id in note_ids {
+            let note = Database::get_note_where_id(&note_id).unwrap();
+            println!("{} {}", note_id.yellow(), note.note_name);
         }
-
-        // let entries = fs::read_dir("./").unwrap();
-        // for entry in entries {
-        //     let entry = entry.unwrap();
-        //     print_if_file(&entry);
-        // }
-        //
-        // fn print_if_file(entry: &DirEntry) {
-        //     let path = entry.path();
-        //     if path.is_file() {
-        //         let file_stem = path.file_stem().unwrap().to_str().expect("The filename contains illegal characters!");
-        //         if !file_stem.starts_with(".") {
-        //             println!("-- {}", file_stem);
-        //         }
-        //     }
-        // }
     }
 
     pub fn add(note_name: &str, notes_dir: &str) {
@@ -48,7 +29,7 @@ impl Notes {
         let template_path = notes_dir_path.join(".zettelkasten").join("note-template.md");
 
         if !template_path.exists() {
-            println!("The note template couldn't be found at {:?}", template_path);
+            Message::error(&format!("the note template couldn't be found at '{}'", template_path.to_str().unwrap()));
             return;
         }
 
@@ -102,22 +83,22 @@ impl Notes {
     }
 
     pub fn remove(note_name: &str, notes_dir: &str) {
-        let note_id = match Database::get_note_id_where(&format!("note_name = '{}'", note_name)) {
+        let note_id = match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
             Some(value) => value,
             None => {
-                Message::error(&format!("the note '{}' does note exist!", note_name));
+                Message::error(&format!("note couldn't be removed: 'the note '{}' does note exist!'", note_name));
                 return;
             }
         };
 
-        let note_file_name = match Database::get_file_name_where(&format!("note_id = '{}'", note_id)) {
+        let note = match Database::get_note_where_id(&note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("the note id '{}' does note exist!", note_id));
+                Message::error(&format!("note couldn't be removed: 'the note id '{}' does note exist!'", note_id));
                 return;
             }
         };
-        let note_file_path = Path::new(notes_dir).join(note_file_name);
+        let note_file_path = Path::new(notes_dir).join(note.file_name);
 
         let note_tags = Database::get_tags_of_note(&note_id);
 
@@ -142,21 +123,14 @@ impl Notes {
     }
 
     pub fn open(note_id: &str) {
-        let file_name = match Database::get_file_name_where(&format!("note_id = '{}'", note_id)) {
+        let note = match Database::get_note_where_id(note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("the note id '{}' does not exist!", note_id));
+                Message::error(&format!("couldn't open note: 'the note id '{}' does not exist!'", note_id));
                 return;
             }
         };
-        let relative_file_path = Path::new(&file_name);
-        let original_note_name = match Database::get_note_name_where(&format!("note_id = '{}'", note_id)) {
-            Some(value) => value,
-            None => {
-                Message::error(&format!("the note id '{}' does not exist!", note_id));
-                return;
-            }
-        };
+        let relative_file_path = Path::new(&note.file_name);
 
         let editor = match env::var("EDITOR") {
             Ok(value) => value,
@@ -169,7 +143,7 @@ impl Notes {
         let absolute_file_path = match relative_file_path.canonicalize() {
             Ok(path) => path,
             Err(error) => {
-                Message::error(&format!("couldn't get the absolute path of {}: '{}'", &file_name, error));
+                Message::error(&format!("couldn't get the absolute path of {}: '{}'", &note.file_name, error));
                 return;
             }
         };
@@ -178,20 +152,20 @@ impl Notes {
         match Command::new(&editor).arg(&absolute_file_path).status() {
             Ok(_) => {  },
             Err(error) => {
-                Message::error(&format!("couldn't open the note '{}': '{}'", &file_name, error));
+                Message::error(&format!("couldn't open the note '{}': '{}'", &note.file_name, error));
                 return;
             }
         };
 
-        Notes::check_yaml_header_of(&file_name, note_id, &original_note_name);
+        Notes::check_yaml_header_of(&note);
     }
 
-    fn check_yaml_header_of(file_name: &str, note_id: &str, original_note_name: &str) {
-        let yaml_header = match Notes::get_yaml_header_of(file_name) {
+    fn check_yaml_header_of(note: &Note) {
+        let yaml_header = match Notes::get_yaml_header_of(&note.file_name) {
             Ok(header) => header,
             Err(error) => {
                 Message::error(&format!("couldn't read note file: '{}'", error));
-                Notes::show_open_file_dialog_for(note_id);
+                Notes::show_open_file_dialog_for(&note.note_id);
                 return;
             }
         };
@@ -199,16 +173,16 @@ impl Notes {
             Ok(yaml_vector) => yaml_vector,
             Err(error) => {
                 Message::error(&format!("couldn't parse yaml header: '{}'", error));
-                Notes::show_open_file_dialog_for(note_id);
+                Notes::show_open_file_dialog_for(&note.note_id);
                 return;
             }
         };
         let note_metadata = &yaml_files[0];
 
-        let is_check_complete = check_metadata_name_of(note_id, note_metadata, original_note_name);
+        let is_check_complete = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name);
         if !is_check_complete { return; }
 
-        let is_check_complete = check_metadata_tags_of(note_id, note_metadata);
+        let is_check_complete = check_metadata_tags_of(&note.note_id, note_metadata);
         if !is_check_complete { return; }
 
         fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str) -> bool {
@@ -222,7 +196,7 @@ impl Notes {
                         Notes::show_open_file_dialog_for(note_id);
                         return false;
                     } else if new_note_name != original_note_name {
-                        Database::update_note_name_where(new_note_name, &format!("note_id = '{}'", note_id));
+                        Database::update_note_name_where(new_note_name, NoteProperty::NoteId, note_id);
                     }
                 }
                 None => {
