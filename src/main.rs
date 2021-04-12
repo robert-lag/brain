@@ -1,11 +1,14 @@
-mod settings;
-mod directory;
-mod notes;
 mod database;
+mod directory;
 mod message;
+mod note_property;
+mod note;
+mod notes;
+mod settings;
 
 use settings::Settings;
 use directory::Directory;
+use note_property::NoteProperty;
 use notes::Notes;
 use database::Database;
 use message::Message;
@@ -13,6 +16,7 @@ use message::Message;
 use clap::{ Arg, App, SubCommand, AppSettings, ArgMatches, crate_name, crate_version };
 use std::env;
 use std::fs;
+use std::path::Path;
 
 fn main() {
     let matches = App::new("Brain")
@@ -77,7 +81,7 @@ fn main() {
 }
 
 fn exec_init_command (_matches: &ArgMatches, settings: &mut Settings) {
-    if Directory::is_zettelkasten_dir(&settings.notes_dir) {
+    if Directory::is_zettelkasten_dir(&settings.notes_dir, true) {
         return;
     }
     initialize_zettelkasten();
@@ -87,27 +91,42 @@ fn initialize_zettelkasten () {
     let current_path = env::current_dir().unwrap();
 
     match fs::create_dir(".zettelkasten") {
-        Ok(_) => println!("Initialized zettelkasten directory in {}", &current_path.display()),
-        Err(error) => Message::error(&format!("problem creating the '.zettelkasten' directory: {:?}", error)),
+        Ok(_) => println!("initialized zettelkasten directory in '{}'", &current_path.display()),
+        Err(error) => {
+            Message::error(&format!("problem creating the '.zettelkasten' directory: '{}'", error));
+            return;
+        }
     };
 
-    Directory::copy("./src/dot-zettelkasten", "./.zettelkasten");
+    // Directory::copy("./src/dot-zettelkasten", "./.zettelkasten");
+    let note_template_content = include_str!("note-template.md");
+    let note_template_path = Path::new(".zettelkasten").join("note-template.md");
+    match fs::write(&note_template_path, note_template_content) {
+        Ok(_) => {  },
+        Err(error) => {
+            Message::error(&format!("failed to create a note-template file in {}: '{}'",
+                &note_template_path.to_str().unwrap(), error));
+            return;
+        }
+    };
+
+    Database::init();
 }
 
 fn exec_list_command (matches: &ArgMatches, settings: &mut Settings) {
-    if !Directory::is_zettelkasten_dir(&settings.notes_dir) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
     Notes::list(matches.value_of("count").unwrap_or("100").parse().unwrap_or(100));
 }
 
 fn exec_open_command (matches: &ArgMatches, settings: &mut Settings) {
-    if !Directory::is_zettelkasten_dir(&settings.notes_dir) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
     let note_name = matches.value_of("name").unwrap_or_default();
 
-    match Database::get_note_id_where(&format!("note_name = '{}'", note_name)) {
+    match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
         Some(note_id) => Notes::open(&note_id),
         None => {
             Message::error(&format!("note '{}' does not exist!", note_name));
@@ -116,14 +135,14 @@ fn exec_open_command (matches: &ArgMatches, settings: &mut Settings) {
 }
 
 fn exec_add_command (matches: &ArgMatches, settings: &mut Settings) {
-    if !Directory::is_zettelkasten_dir(&settings.notes_dir) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
     Notes::add(matches.value_of("name").unwrap_or_default(), &settings.notes_dir);
 }
 
 fn exec_rm_command (matches: &ArgMatches, settings: &mut Settings) {
-    if !Directory::is_zettelkasten_dir(&settings.notes_dir) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
     Notes::remove(matches.value_of("name").unwrap_or_default(), &settings.notes_dir);
