@@ -87,6 +87,8 @@ fn main() {
 
 fn exec_init_command (_matches: &ArgMatches, settings: &mut Settings) {
     if Directory::is_zettelkasten_dir(&settings.notes_dir, true) {
+        println!("the specified directory is already a zettelkasten directory: {}",
+            &settings.notes_dir.to_string_lossy());
         return;
     }
     initialize_zettelkasten(&settings.notes_dir);
