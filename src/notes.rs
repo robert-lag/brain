@@ -2,14 +2,16 @@ use crate::database::Database;
 use crate::message::Message;
 use crate::note_property::NoteProperty;
 use crate::note::Note;
+use crate::settings::Settings;
 
 use chrono::prelude::*;
 use colored::*;
 use regex::Regex;
 use std::env;
+use std::ffi::OsStr;
 use std::fs::{ self, File };
 use std::io::{ self, Error, Read, Write };
-use std::path::Path;
+use std::path::{ Path, PathBuf };
 use std::process::Command;
 use yaml_rust::{ YamlLoader, Yaml };
 
@@ -24,16 +26,20 @@ impl Notes {
         }
     }
 
-    pub fn add(note_name: &str, notes_dir: &str) {
-        let notes_dir_path = Path::new(notes_dir);
-        let template_path = notes_dir_path.join(".zettelkasten").join("note-template.md");
+    pub fn add(note_name: &str, settings: &Settings) {
+        let template_path = Path::new(&settings.zettelkasten_dir).join("note-template.md");
 
         if !template_path.exists() {
-            Message::error(&format!("the note template couldn't be found at '{}'", template_path.to_str().unwrap()));
+            Message::error(&format!("the note template couldn't be found at '{}'",
+                template_path.to_string_lossy()));
             return;
         }
 
-        let (note_id, file_name, creation_date_time) = Notes::create_note_from_template(note_name, notes_dir, &template_path.to_str().unwrap());
+        let (note_id, file_name, creation_date_time) = Notes::create_note_from_template(
+            note_name,
+            &settings.notes_dir,
+            template_path.as_os_str()
+        );
 
         if (note_id != None) && (file_name != None) && (creation_date_time != None) {
             let note_id = note_id.unwrap();
@@ -41,11 +47,11 @@ impl Notes {
             let creation_date_time = creation_date_time.unwrap();
 
             Database::insert_note(&note_id, note_name, &file_name, creation_date_time);
-            Notes::open(&note_id);
+            Notes::open(&note_id, &settings.notes_dir);
         }
     }
 
-    fn create_note_from_template(note_name: &str, notes_dir: &str, template_path: &str) -> (Option<String>, Option<String>, Option<DateTime<Local>>) {
+    fn create_note_from_template(note_name: &str, notes_dir: &OsStr, template_path: &OsStr) -> (Option<String>, Option<String>, Option<DateTime<Local>>) {
         let creation_date_time = Local::now();
         let creation_timestamp = creation_date_time.format("%Y-%m-%d %H:%M:%S").to_string();
         let creation_file_timestamp = creation_date_time.format("%Y-%m-%d-%H%M%S").to_string();
@@ -57,7 +63,7 @@ impl Notes {
         let note_content = match Notes::get_content_from_file(&template_path) {
             Ok(file_content) => file_content,
             Err(error) => {
-                Message::error(&format!("couldn't read template file: '{}'", error));
+                Message::error(&format!("couldn't read template file: {}", error));
                 return (None, None, None);
             }
         };
@@ -68,25 +74,25 @@ impl Notes {
         let mut new_note = match File::create(&file_path) {
             Ok(created_file) => created_file,
             Err(error) => {
-                Message::error(&format!("couldn't create file: '{}'", error));
+                Message::error(&format!("couldn't create file: {}", error));
                 return (None, None, None);
             }
         };
         match new_note.write(note_content.as_bytes()) {
             Ok(_) => {  },
             Err(error) => {
-                Message::warning(&format!("couldn't apply template to created note: '{}'", error));
+                Message::warning(&format!("couldn't apply template to created note: {}", error));
             }
         };
 
         return (Some(note_id), Some(file_name), Some(creation_date_time));
     }
 
-    pub fn remove(note_name: &str, notes_dir: &str) {
+    pub fn remove(note_name: &str, notes_dir: &OsStr) {
         let note_id = match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
             Some(value) => value,
             None => {
-                Message::error(&format!("note couldn't be removed: 'the note '{}' does note exist!'", note_name));
+                Message::error(&format!("note couldn't be removed: the note '{}' does note exist!", note_name));
                 return;
             }
         };
@@ -94,7 +100,7 @@ impl Notes {
         let note = match Database::get_note_where_id(&note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("note couldn't be removed: 'the note id '{}' does note exist!'", note_id));
+                Message::error(&format!("note couldn't be removed: the note id '{}' does note exist!", note_id));
                 return;
             }
         };
@@ -116,21 +122,21 @@ impl Notes {
         match fs::remove_file(&note_file_path){
             Ok(_) => {  },
             Err(error) => {
-                Message::error(&format!("note file '{}' couldn't be removed: '{}'", note_file_path.to_str().unwrap(), error));
+                Message::error(&format!("note file '{}' couldn't be removed: {}", note_file_path.to_string_lossy(), error));
                 return;
             }
         };
     }
 
-    pub fn open(note_id: &str) {
+    pub fn open(note_id: &str, notes_dir: &OsStr) {
         let note = match Database::get_note_where_id(note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("couldn't open note: 'the note id '{}' does not exist!'", note_id));
+                Message::error(&format!("couldn't open note: the note id '{}' does not exist!", note_id));
                 return;
             }
         };
-        let relative_file_path = Path::new(&note.file_name);
+        let relative_file_path = Path::new(notes_dir).join(&note.file_name);
 
         let editor = match env::var("EDITOR") {
             Ok(value) => value,
@@ -143,7 +149,9 @@ impl Notes {
         let absolute_file_path = match relative_file_path.canonicalize() {
             Ok(path) => path,
             Err(error) => {
-                Message::error(&format!("couldn't get the absolute path of {}: '{}'", &note.file_name, error));
+                Message::error(&format!("couldn't get the absolute path of {}: '{}'",
+                    &note.file_name,
+                    error));
                 return;
             }
         };
@@ -157,15 +165,16 @@ impl Notes {
             }
         };
 
-        Notes::check_yaml_header_of(&note);
+        Notes::check_yaml_header_of(&note, notes_dir);
     }
 
-    fn check_yaml_header_of(note: &Note) {
-        let yaml_header = match Notes::get_yaml_header_of(&note.file_name) {
+    fn check_yaml_header_of(note: &Note, notes_dir: &OsStr) {
+        let absolute_note_file_path = PathBuf::from(notes_dir).join(&note.file_name);
+        let yaml_header = match Notes::get_yaml_header_of(absolute_note_file_path.as_os_str()) {
             Ok(header) => header,
             Err(error) => {
                 Message::error(&format!("couldn't read note file: '{}'", error));
-                Notes::show_open_file_dialog_for(&note.note_id);
+                Notes::show_open_file_dialog_for(&note.note_id, notes_dir);
                 return;
             }
         };
@@ -173,19 +182,19 @@ impl Notes {
             Ok(yaml_vector) => yaml_vector,
             Err(error) => {
                 Message::error(&format!("couldn't parse yaml header: '{}'", error));
-                Notes::show_open_file_dialog_for(&note.note_id);
+                Notes::show_open_file_dialog_for(&note.note_id, notes_dir);
                 return;
             }
         };
         let note_metadata = &yaml_files[0];
 
-        let is_check_complete = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name);
+        let is_check_complete = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name, notes_dir);
         if !is_check_complete { return; }
 
-        let is_check_complete = check_metadata_tags_of(&note.note_id, note_metadata);
+        let is_check_complete = check_metadata_tags_of(&note.note_id, note_metadata, notes_dir);
         if !is_check_complete { return; }
 
-        fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str) -> bool {
+        fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str, notes_dir: &OsStr) -> bool {
             match note_metadata["name"].as_str() {
                 Some(new_note_name) => {
                     let whitespace_validator = Regex::new(r"^\s*$").unwrap();
@@ -193,7 +202,7 @@ impl Notes {
                     if whitespace_validator.is_match(new_note_name) {
                         Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
                         Message::example("---\nname: \"note name\"\n---");
-                        Notes::show_open_file_dialog_for(note_id);
+                        Notes::show_open_file_dialog_for(note_id, notes_dir);
                         return false;
                     } else if new_note_name != original_note_name {
                         Database::update_note_name_where(new_note_name, NoteProperty::NoteId, note_id);
@@ -202,7 +211,7 @@ impl Notes {
                 None => {
                     Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
                     Message::example("---\nname: \"note name\"\n---");
-                    Notes::show_open_file_dialog_for(note_id);
+                    Notes::show_open_file_dialog_for(note_id, notes_dir);
                     return false;
                 }
             }
@@ -210,7 +219,7 @@ impl Notes {
             return true;
         }
 
-        fn check_metadata_tags_of(note_id: &str, note_metadata: &Yaml) -> bool {
+        fn check_metadata_tags_of(note_id: &str, note_metadata: &Yaml, notes_dir: &OsStr) -> bool {
             match note_metadata["tags"].as_vec() {
                 Some(tags) => {
                     for tag in tags.iter() {
@@ -222,7 +231,7 @@ impl Notes {
                     println!("{} this note doesn't have any tags! It will be difficult to find again!", "warning:".bold().yellow());
                     println!("Please add a few appropriate tags!");
                     println!("\n{}\n---\ntags: \"[ first-tag, second-tag, third-tag ]\"\n---\n", "example:".bold().yellow());
-                    Notes::show_open_file_dialog_for(note_id);
+                    Notes::show_open_file_dialog_for(note_id, notes_dir);
                     return false;
                 }
             }
@@ -231,7 +240,7 @@ impl Notes {
         }
     }
 
-    fn show_open_file_dialog_for(note_id: &str) {
+    fn show_open_file_dialog_for(note_id: &str, notes_dir: &OsStr) {
         print!("Do you want to open the file again? [Y/n] ");
         io::stdout().flush().unwrap();
 
@@ -242,11 +251,11 @@ impl Notes {
         }
 
         if !(open_file_again.trim().to_lowercase() == "n") {
-            Notes::open(note_id);
+            Notes::open(note_id, notes_dir);
         }
     }
 
-    fn get_yaml_header_of(file_path: &str) -> Result<String, Error> {
+    fn get_yaml_header_of(file_path: &OsStr) -> Result<String, Error> {
         let note_content = match Notes::get_content_from_file(file_path) {
             Ok(file_content) => file_content,
             Err(error) => return Err(error)
@@ -259,7 +268,7 @@ impl Notes {
         return Ok(yaml_header.to_string());
     }
 
-    fn get_content_from_file(path: &str) -> Result<String, Error> {
+    fn get_content_from_file(path: &OsStr) -> Result<String, Error> {
         let mut file = match File::open(path) {
             Ok(opened_file) => opened_file,
             Err(error) => return Err(error)

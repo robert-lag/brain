@@ -135,6 +135,7 @@ dependencies = [
  "clap",
  "colored",
  "dirs",
+ "lazy_static",
  "mysql",
  "regex",
  "rusqlite",

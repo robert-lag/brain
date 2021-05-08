@@ -3,8 +3,15 @@ use crate::note::Note;
 use crate::note_property::NoteProperty;
 
 use chrono::prelude::*;
+use lazy_static::lazy_static;
 use rusqlite::{ Connection, params, named_params };
+use std::ffi::{ OsString, OsStr };
 use std::path::Path;
+use std::sync::Mutex;
+
+lazy_static! {
+    static ref DB_DIR_PATH: Mutex<OsString> = Mutex::default();
+}
 
 pub struct Database;
 impl Database {
@@ -39,6 +46,10 @@ impl Database {
 
             COMMIT TRANSACTION;
         ").unwrap();
+    }
+
+    pub fn set_db_path(db_file_path: &OsStr) {
+        *DB_DIR_PATH.lock().unwrap() = db_file_path.to_os_string();
     }
 
     pub fn insert_note(note_id: &str, note_name: &str, file_name: &str, creation_date_time: DateTime<Local>) {
@@ -355,7 +366,15 @@ impl Database {
     }
 
     fn get_connection() -> Connection {
-        let conn = match Connection::open(Path::new(".zettelkasten").join("data.db")) {
+        let db_dir = &*DB_DIR_PATH.lock().unwrap();
+        if db_dir.is_empty() {
+            Message::error("the path of the database file has not been set!");
+            panic!();
+        }
+
+        println!("Connection path: {}", db_dir.to_string_lossy());
+
+        let conn = match Connection::open(Path::new(db_dir).join("data.db")) {
             Ok(connection) => connection,
             Err(error) => {
                 Message::error(&error.to_string());
