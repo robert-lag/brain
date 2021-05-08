@@ -372,8 +372,6 @@ impl Database {
             panic!();
         }
 
-        println!("Connection path: {}", db_dir.to_string_lossy());
-
         let conn = match Connection::open(Path::new(db_dir).join("data.db")) {
             Ok(connection) => connection,
             Err(error) => {
