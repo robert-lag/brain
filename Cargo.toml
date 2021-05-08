@@ -1,0 +1,19 @@
+[package]
+name = "brn"
+version = "0.1.0"
+authors = ["Robert Lag <rob.lag@outlook.com"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = "~2.33"
+regex = "~1.4"
+walkdir = "~2.3"
+chrono = "~0.4"
+mysql = "~20.1"
+yaml-rust = "~0.4"
+colored = "~2.0"
+rusqlite = "~0.25"
+dirs = "~3.0"
+lazy_static = "~1.4"
