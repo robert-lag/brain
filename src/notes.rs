@@ -187,14 +187,15 @@ impl Notes {
         let note_id = match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
             Some(value) => value,
             None => {
-                Message::error(&format!("note couldn't be removed: the note '{}' does note exist!", note_name));
-                return;
+                // Message::error(&format!("note couldn't be removed: the note '{}' does not exist!", note_name));
+                // return;
+                note_name.to_string()
             }
         };
         let note = match Database::get_note_where_id(&note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("note couldn't be removed: the note id '{}' does note exist!", note_id));
+                Message::error(&format!("note couldn't be removed: the note id or note name '{}' does not exist!", note_id));
                 return;
             }
         };
