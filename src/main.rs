@@ -60,6 +60,9 @@ fn main() {
                 .required(true)
             )
         )
+        .subcommand(SubCommand::with_name("random")
+            .about("Opens a random note")
+        )
         .subcommand(SubCommand::with_name("add")
             .about("Adds a new note to the zettelkasten")
             .arg(Arg::with_name("name")
@@ -89,13 +92,14 @@ fn main() {
         ("list", Some(list_matches)) => exec_list_command(&list_matches, &mut settings),
         ("open", Some(open_matches)) => exec_open_command(&open_matches, &mut settings),
         ("search", Some(search_matches)) => exec_search_command(&search_matches, &mut settings),
+        ("random", Some(random_matches)) => exec_random_command(&random_matches, &mut settings),
         ("add", Some(add_matches)) => exec_add_command(&add_matches, &mut settings),
         ("rm", Some(remove_matches)) => exec_rm_command(&remove_matches, &mut settings),
         _ => (),
     }
 }
 
-fn exec_init_command (_matches: &ArgMatches, settings: &mut Settings) {
+fn exec_init_command(_matches: &ArgMatches, settings: &mut Settings) {
     if Directory::is_zettelkasten_dir(&settings.notes_dir, true) {
         println!("the specified directory is already a zettelkasten directory: {}",
             &settings.notes_dir.to_string_lossy());
@@ -104,7 +108,7 @@ fn exec_init_command (_matches: &ArgMatches, settings: &mut Settings) {
     initialize_zettelkasten(&settings.notes_dir);
 }
 
-fn initialize_zettelkasten (directory: &OsStr) {
+fn initialize_zettelkasten(directory: &OsStr) {
     let notes_path = Path::new(directory);
     let zettelkasten_dir_path = notes_path.join(".zettelkasten");
 
@@ -132,14 +136,14 @@ fn initialize_zettelkasten (directory: &OsStr) {
     Database::init();
 }
 
-fn exec_list_command (matches: &ArgMatches, settings: &mut Settings) {
+fn exec_list_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
     Notes::list(matches.value_of("count").unwrap_or("100").parse().unwrap_or(100));
 }
 
-fn exec_open_command (matches: &ArgMatches, settings: &mut Settings) {
+fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
@@ -153,7 +157,7 @@ fn exec_open_command (matches: &ArgMatches, settings: &mut Settings) {
     };
 }
 
-fn exec_search_command (matches: &ArgMatches, settings: &mut Settings) {
+fn exec_search_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
@@ -162,14 +166,22 @@ fn exec_search_command (matches: &ArgMatches, settings: &mut Settings) {
     Notes::search(search_string);
 }
 
-fn exec_add_command (matches: &ArgMatches, settings: &mut Settings) {
+fn exec_random_command(_matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+
+    Notes::open_random_note(&settings.notes_dir);
+}
+
+fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
     Notes::add(matches.value_of("name").unwrap_or_default(), &settings);
 }
 
-fn exec_rm_command (matches: &ArgMatches, settings: &mut Settings) {
+fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }

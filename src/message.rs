@@ -14,6 +14,10 @@ impl Message {
         println!("{} {}", "hint:".bold().yellow(), message);
     }
 
+    pub fn info(message: &str) {
+        println!("{} {}", "info:".bold().blue(), message);
+    }
+
     pub fn example(message: &str) {
         println!("\n{}\n{}\n", "example:".bold().yellow(), message);
     }

@@ -222,6 +222,27 @@ impl Notes {
             }
         };
     }
+    
+    pub fn open_random_note(notes_dir: &OsStr) {
+        let note_id = match Database::get_random_note_id() {
+            Some(value) => value,
+            None => {
+                Message::error("couldn't find a random note");
+                return;
+            }
+        };
+        
+        let note = match Database::get_note_where_id(&note_id) {
+            Some(value) => value,
+            None => {
+                Message::error(&format!("couldn't open note: the note id '{}' does not exist!", note_id));
+                return;
+            }
+        };
+        Message::info(&format!("opened note:  {} {} ", note_id.yellow(), note.note_name));
+
+        Notes::open(&note_id, notes_dir);
+    }
 
     pub fn open(note_id: &str, notes_dir: &OsStr) {
         let note = match Database::get_note_where_id(note_id) {
