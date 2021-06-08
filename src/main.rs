@@ -1,7 +1,9 @@
+mod collection_tool;
 mod database;
 mod directory;
 mod message;
 mod note_property;
+mod note_tagging;
 mod note;
 mod notes;
 mod settings;
@@ -51,6 +53,13 @@ fn main() {
                 .required(true)
             )
         )
+        .subcommand(SubCommand::with_name("search")
+            .about("Searches notes with the specified search string")
+            .arg(Arg::with_name("search-string")
+                .help("The search string that is used to find notes")
+                .required(true)
+            )
+        )
         .subcommand(SubCommand::with_name("add")
             .about("Adds a new note to the zettelkasten")
             .arg(Arg::with_name("name")
@@ -79,6 +88,7 @@ fn main() {
         ("init", Some(init_matches)) => exec_init_command(&init_matches, &mut settings),
         ("list", Some(list_matches)) => exec_list_command(&list_matches, &mut settings),
         ("open", Some(open_matches)) => exec_open_command(&open_matches, &mut settings),
+        ("search", Some(search_matches)) => exec_search_command(&search_matches, &mut settings),
         ("add", Some(add_matches)) => exec_add_command(&add_matches, &mut settings),
         ("rm", Some(remove_matches)) => exec_rm_command(&remove_matches, &mut settings),
         _ => (),
@@ -141,6 +151,15 @@ fn exec_open_command (matches: &ArgMatches, settings: &mut Settings) {
             Message::error(&format!("note '{}' does not exist!", note_name));
         }
     };
+}
+
+fn exec_search_command (matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+    let search_string = matches.value_of("search-string").unwrap_or_default();
+
+    Notes::search(search_string);
 }
 
 fn exec_add_command (matches: &ArgMatches, settings: &mut Settings) {
