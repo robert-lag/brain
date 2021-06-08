@@ -1,12 +1,17 @@
+use crate::collection_tool::CollectionTool;
 use crate::database::Database;
 use crate::message::Message;
 use crate::note_property::NoteProperty;
+use crate::note_tagging::NoteTagging;
 use crate::note::Note;
 use crate::settings::Settings;
 
 use chrono::prelude::*;
 use colored::*;
 use regex::Regex;
+use std::collections::hash_map::RandomState;
+use std::collections::hash_set::Difference;
+use std::collections::HashSet;
 use std::env;
 use std::ffi::OsStr;
 use std::fs::{ self, File };
@@ -23,6 +28,96 @@ impl Notes {
         for note_id in note_ids {
             let note = Database::get_note_where_id(&note_id).unwrap();
             println!("{} {}", note_id.yellow(), note.note_name);
+        }
+    }
+
+    pub fn search(complete_search_string: &str) {
+        let split_search_strings = complete_search_string.split(" && ");
+        let mut search_results: HashSet<NoteTagging> = HashSet::new();
+        let mut negated_search_results: HashSet<NoteTagging> = HashSet::new();
+
+        for search_string in split_search_strings {
+            search_notes_and_add_to(search_string, &mut search_results, &mut negated_search_results);
+        }
+
+        let search_results = search_results.difference(&negated_search_results);
+
+        display_search_results_of(search_results);
+
+        fn search_notes_and_add_to(mut search_string: &str, search_results: &mut HashSet<NoteTagging>, negated_search_results: &mut HashSet<NoteTagging>) {
+            let mut individual_search_results = HashSet::new();
+            let mut is_search_string_for_tag = false;
+            let mut is_negated_search_string = false;
+
+            loop {
+                if &search_string[0..1] == "!" {
+                    is_negated_search_string = true;
+                    search_string = &search_string[1..search_string.len()];
+                } else if &search_string[0..1] == "#" {
+                    is_search_string_for_tag = true;
+                    search_string = &search_string[1..search_string.len()];
+                } else {
+                    break;
+                }
+            }
+
+            // Get individual search results
+            if !is_search_string_for_tag {
+                search_note_names(&mut individual_search_results, search_string);
+            }
+            search_tags(&mut individual_search_results, search_string);
+
+            // Intersect with already existing search results
+            if is_negated_search_string {
+                if negated_search_results.is_empty() {
+                    *negated_search_results = individual_search_results;
+                }
+                else {
+                    *negated_search_results = CollectionTool::intersect(negated_search_results, &mut individual_search_results);
+                }
+            } else {
+                if search_results.is_empty() {
+                    *search_results = individual_search_results;
+                }
+                else {
+                    *search_results = CollectionTool::intersect(search_results, &mut individual_search_results);
+                }
+            }
+
+            fn search_note_names(individual_search_results: &mut HashSet<NoteTagging>, individual_search_string: &str) {
+                let search_string_with_wildcards = format!("%{}%", individual_search_string);
+                let note_ids = Database::get_note_ids_where_property_is_like(NoteProperty::NoteName, &search_string_with_wildcards);
+                for note_id in note_ids {
+                    individual_search_results.insert(NoteTagging::from(note_id, None));
+                }
+            }
+
+            fn search_tags(individual_search_results: &mut HashSet<NoteTagging>, individual_search_string: &str) {
+                let search_string_with_wildcards = format!("%{}%", individual_search_string);
+                let note_tagging_results = Database::get_note_ids_with_tag_like(&search_string_with_wildcards);
+                for note_tagging in note_tagging_results {
+                    individual_search_results.insert(note_tagging);
+                }
+            }
+        }
+
+        fn display_search_results_of(search_results: Difference<NoteTagging, RandomState>) {
+            for search_result in search_results {
+                if let Some(note) = Database::get_note_where_id(&search_result.note_id) {
+                    let tag_name = &search_result.tag_name.as_ref();
+
+                    if tag_name.is_some() {
+                        let tag_name = tag_name.unwrap();
+                        println!("{} {}\t\t{}{}",
+                            note.note_id.yellow(), note.note_name,
+                            "#".bright_yellow(), tag_name.bright_yellow());
+                    }
+                    else {
+                        println!("{} {}", note.note_id.yellow(), note.note_name);
+                    }
+                }
+
+            }
         }
     }
 
@@ -96,7 +191,6 @@ impl Notes {
                 return;
             }
         };
-
         let note = match Database::get_note_where_id(&note_id) {
             Some(value) => value,
             None => {
@@ -104,8 +198,8 @@ impl Notes {
                 return;
             }
         };
-        let note_file_path = Path::new(notes_dir).join(note.file_name);
 
+        let note_file_path = Path::new(notes_dir).join(note.file_name);
         let note_tags = Database::get_tags_of_note(&note_id);
 
         for note_tag in note_tags {
