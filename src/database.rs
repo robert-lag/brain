@@ -69,6 +69,21 @@ impl Database {
         ).unwrap();
     }
 
+    pub fn get_random_note_id() -> Option<String> {
+        let conn = Database::get_connection();
+
+        let query_result = conn.query_row(
+            "SELECT note_id
+             FROM note
+             ORDER BY RANDOM()
+             LIMIT 1",
+            named_params!{ },
+            |row| row.get(0)
+        ).ok();
+
+        return query_result;
+    }
+
     pub fn get_note_id_where(note_property: NoteProperty, value: &str) -> Option<String> {
         let conn = Database::get_connection();
         let query = format!(
