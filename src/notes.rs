@@ -3,6 +3,7 @@ use crate::database::Database;
 use crate::message::Message;
 use crate::note_property::NoteProperty;
 use crate::note_tagging::NoteTagging;
+use crate::note_type::NoteType;
 use crate::note::Note;
 use crate::settings::Settings;
 
@@ -121,7 +122,7 @@ impl Notes {
         }
     }
 
-    pub fn add(note_name: &str, settings: &mut Settings) {
+    pub fn add(note_name: &str, note_type: NoteType, settings: &mut Settings) {
         let template_path = Path::new(&settings.zettelkasten_dir).join("note-template.md");
 
         if !template_path.exists() {
@@ -130,27 +131,30 @@ impl Notes {
             return;
         }
 
-        let (note_id, file_name, creation_date_time) = Notes::create_note_from_template(
+        if let Some(note) = Notes::create_note_from_template(
             note_name,
+            note_type,
             &settings.notes_dir,
             template_path.as_os_str()
-        );
+        ) {
+            Message::info(&format!("created note: {} {}", note.note_id.yellow(), note.note_name));
 
-        if (note_id != None) && (file_name != None) && (creation_date_time != None) {
-            let note_id = note_id.unwrap();
-            let file_name = file_name.unwrap();
-            let creation_date_time = creation_date_time.unwrap();
-
-            Database::insert_note(&note_id, note_name, &file_name, creation_date_time);
-            Notes::open(&note_id, settings);
+            Database::insert_note(&note.note_id, &note.note_name, &note.file_name, note.creation_date_time);
+            Notes::open(&note.note_id, settings);
         }
     }
 
-    fn create_note_from_template(note_name: &str, notes_dir: &OsStr, template_path: &OsStr) -> (Option<String>, Option<String>, Option<DateTime<Local>>) {
+    fn create_note_from_template(note_name: &str, note_type: NoteType, notes_dir: &OsStr, template_path: &OsStr) -> Option<Note> {
         let creation_date_time = Local::now();
         let creation_timestamp = creation_date_time.format("%Y-%m-%d %H:%M:%S").to_string();
         let creation_file_timestamp = creation_date_time.format("%Y-%m-%d-%H%M%S").to_string();
-        let note_id = creation_date_time.format("%Y%m%d%H%M%S").to_string();
+
+        let note_type_identifier = match note_type {
+            NoteType::Topic => "T",
+            NoteType::Quote => "Q",
+            NoteType::Journal => "J",
+        };
+        let note_id = format!("{}{}", note_type_identifier, creation_date_time.format("%Y%m%d%H%M%S").to_string());
 
         let file_name = format!("{}.md", &creation_file_timestamp);
         let file_path = Path::new(notes_dir).join(&file_name);
@@ -159,7 +163,7 @@ impl Notes {
             Ok(file_content) => file_content,
             Err(error) => {
                 Message::error(&format!("couldn't read template file: {}", error));
-                return (None, None, None);
+                return None;
             }
         };
         let note_content = note_content
@@ -170,17 +174,14 @@ impl Notes {
             Ok(created_file) => created_file,
             Err(error) => {
                 Message::error(&format!("couldn't create file: {}", error));
-                return (None, None, None);
+                return None;
             }
         };
-        match new_note.write(note_content.as_bytes()) {
-            Ok(_) => {  },
-            Err(error) => {
-                Message::warning(&format!("couldn't apply template to created note: {}", error));
-            }
+        if let Err(error) = new_note.write(note_content.as_bytes()) {
+            Message::warning(&format!("couldn't apply template to created note: {}", error));
         };
 
-        return (Some(note_id), Some(file_name), Some(creation_date_time));
+        return Some(Note::new(note_id, note_name.to_string(), file_name, creation_date_time));
     }
 
     pub fn remove(note_name: &str, notes_dir: &OsStr) {

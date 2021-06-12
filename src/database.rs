@@ -140,7 +140,7 @@ impl Database {
                     note_id: row.get(0).unwrap(),
                     note_name: row.get(1).unwrap(),
                     file_name: row.get(2).unwrap(),
-                    creation_date: row.get(3).unwrap(),
+                    creation_date_time: Local.datetime_from_str(&row.get::<usize, String>(3).unwrap(), "%Y-%m-%d %H:%M:%S").unwrap(),
                 })
             }
         ).ok();

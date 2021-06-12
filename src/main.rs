@@ -4,6 +4,7 @@ mod directory;
 mod message;
 mod note_property;
 mod note_tagging;
+mod note_type;
 mod note;
 mod notes;
 mod settings;
@@ -11,6 +12,7 @@ mod settings;
 use settings::Settings;
 use directory::Directory;
 use note_property::NoteProperty;
+use note_type::NoteType;
 use notes::Notes;
 use database::Database;
 use message::Message;
@@ -72,11 +74,29 @@ fn main() {
                 .help("The name of the new note")
                 .required(true)
             )
+            .arg(Arg::with_name("topic")
+                .help("Marks the note as a topic (default)")
+                .short("t")
+                .long("topic")
+                .takes_value(false)
+            )
+            .arg(Arg::with_name("quote")
+                .help("Marks the note as a quote")
+                .short("q")
+                .long("quote")
+                .takes_value(false)
+            )
+            .arg(Arg::with_name("journal")
+                .help("Marks the note as a journal note")
+                .short("j")
+                .long("journal")
+                .takes_value(false)
+            )
         )
         .subcommand(SubCommand::with_name("rm")
             .about("Removes a note from the zettelkasten")
             .arg(Arg::with_name("name")
-                .help("The name of the note to remove")
+                .help("The name or ID of the note to remove")
                 .required(true)
             )
         )
@@ -84,8 +104,9 @@ fn main() {
 
     let mut settings = Settings::new();
 
-    let notes_dir_path = Path::new(matches.value_of("directory").unwrap_or("./"));
-    settings.notes_dir = notes_dir_path.as_os_str().to_os_string();
+    let notes_dir = matches.value_of_os("directory").unwrap_or(OsStr::new("./"));
+    let notes_dir_path = Path::new(notes_dir);
+    settings.notes_dir = notes_dir.to_os_string();
     settings.zettelkasten_dir = notes_dir_path.join(".zettelkasten").into_os_string();
 
     Database::set_db_path(&settings.zettelkasten_dir);
@@ -190,7 +211,19 @@ fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
-    Notes::add(matches.value_of("name").unwrap_or_default(), settings);
+
+    let note_name = matches.value_of("name").unwrap_or_default();
+
+    let note_type;
+    if matches.is_present("quote") {
+        note_type = NoteType::Quote;
+    } else if matches.is_present("journal") {
+        note_type = NoteType::Journal;
+    } else {
+        note_type = NoteType::Topic;
+    }
+
+    Notes::add(note_name, note_type, settings);
 }
 
 fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {
