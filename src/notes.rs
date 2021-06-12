@@ -121,7 +121,7 @@ impl Notes {
         }
     }
 
-    pub fn add(note_name: &str, settings: &Settings) {
+    pub fn add(note_name: &str, settings: &mut Settings) {
         let template_path = Path::new(&settings.zettelkasten_dir).join("note-template.md");
 
         if !template_path.exists() {
@@ -142,7 +142,7 @@ impl Notes {
             let creation_date_time = creation_date_time.unwrap();
 
             Database::insert_note(&note_id, note_name, &file_name, creation_date_time);
-            Notes::open(&note_id, &settings.notes_dir);
+            Notes::open(&note_id, settings);
         }
     }
 
@@ -223,7 +223,7 @@ impl Notes {
         };
     }
     
-    pub fn open_random_note(notes_dir: &OsStr) {
+    pub fn open_random_note(settings: &mut Settings) {
         let note_id = match Database::get_random_note_id() {
             Some(value) => value,
             None => {
@@ -241,10 +241,10 @@ impl Notes {
         };
         Message::info(&format!("opened note:  {} {} ", note_id.yellow(), note.note_name));
 
-        Notes::open(&note_id, notes_dir);
+        Notes::open(&note_id, settings);
     }
 
-    pub fn open(note_id: &str, notes_dir: &OsStr) {
+    pub fn open(note_id: &str, settings: &mut Settings) {
         let note = match Database::get_note_where_id(note_id) {
             Some(value) => value,
             None => {
@@ -252,6 +252,8 @@ impl Notes {
                 return;
             }
         };
+
+        let notes_dir = &settings.notes_dir;
         let relative_file_path = Path::new(notes_dir).join(&note.file_name);
 
         let editor = match env::var("EDITOR") {
@@ -280,17 +282,19 @@ impl Notes {
                 return;
             }
         };
+        settings.add_to_note_history(note_id);
 
-        Notes::check_yaml_header_of(&note, notes_dir);
+        Notes::check_yaml_header_of(&note, settings);
     }
 
-    fn check_yaml_header_of(note: &Note, notes_dir: &OsStr) {
+    fn check_yaml_header_of(note: &Note, settings: &mut Settings) {
+        let notes_dir = &settings.notes_dir;
         let absolute_note_file_path = PathBuf::from(notes_dir).join(&note.file_name);
         let yaml_header = match Notes::get_yaml_header_of(absolute_note_file_path.as_os_str()) {
             Ok(header) => header,
             Err(error) => {
                 Message::error(&format!("couldn't read note file: '{}'", error));
-                Notes::show_open_file_dialog_for(&note.note_id, notes_dir);
+                Notes::show_open_file_dialog_for(&note.note_id, settings);
                 return;
             }
         };
@@ -298,19 +302,19 @@ impl Notes {
             Ok(yaml_vector) => yaml_vector,
             Err(error) => {
                 Message::error(&format!("couldn't parse yaml header: '{}'", error));
-                Notes::show_open_file_dialog_for(&note.note_id, notes_dir);
+                Notes::show_open_file_dialog_for(&note.note_id, settings);
                 return;
             }
         };
         let note_metadata = &yaml_files[0];
 
-        let is_check_complete = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name, notes_dir);
+        let is_check_complete = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name, settings);
         if !is_check_complete { return; }
 
-        let is_check_complete = check_metadata_tags_of(&note.note_id, note_metadata, notes_dir);
+        let is_check_complete = check_metadata_tags_of(&note.note_id, note_metadata, settings);
         if !is_check_complete { return; }
 
-        fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str, notes_dir: &OsStr) -> bool {
+        fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str, settings: &mut Settings) -> bool {
             match note_metadata["name"].as_str() {
                 Some(new_note_name) => {
                     let whitespace_validator = Regex::new(r"^\s*$").unwrap();
@@ -318,7 +322,7 @@ impl Notes {
                     if whitespace_validator.is_match(new_note_name) {
                         Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
                         Message::example("---\nname: \"note name\"\n---");
-                        Notes::show_open_file_dialog_for(note_id, notes_dir);
+                        Notes::show_open_file_dialog_for(note_id, settings);
                         return false;
                     } else if new_note_name != original_note_name {
                         Database::update_note_name_where(new_note_name, NoteProperty::NoteId, note_id);
@@ -327,7 +331,7 @@ impl Notes {
                 None => {
                     Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
                     Message::example("---\nname: \"note name\"\n---");
-                    Notes::show_open_file_dialog_for(note_id, notes_dir);
+                    Notes::show_open_file_dialog_for(note_id, settings);
                     return false;
                 }
             }
@@ -335,7 +339,7 @@ impl Notes {
             return true;
         }
 
-        fn check_metadata_tags_of(note_id: &str, note_metadata: &Yaml, notes_dir: &OsStr) -> bool {
+        fn check_metadata_tags_of(note_id: &str, note_metadata: &Yaml, settings: &mut Settings) -> bool {
             match note_metadata["tags"].as_vec() {
                 Some(tags) => {
                     for tag in tags.iter() {
@@ -347,7 +351,7 @@ impl Notes {
                     println!("{} this note doesn't have any tags! It will be difficult to find again!", "warning:".bold().yellow());
                     println!("Please add a few appropriate tags!");
                     println!("\n{}\n---\ntags: \"[ first-tag, second-tag, third-tag ]\"\n---\n", "example:".bold().yellow());
-                    Notes::show_open_file_dialog_for(note_id, notes_dir);
+                    Notes::show_open_file_dialog_for(note_id, settings);
                     return false;
                 }
             }
@@ -356,7 +360,7 @@ impl Notes {
         }
     }
 
-    fn show_open_file_dialog_for(note_id: &str, notes_dir: &OsStr) {
+    fn show_open_file_dialog_for(note_id: &str, settings: &mut Settings) {
         print!("Do you want to open the file again? [Y/n] ");
         io::stdout().flush().unwrap();
 
@@ -367,7 +371,7 @@ impl Notes {
         }
 
         if !(open_file_again.trim().to_lowercase() == "n") {
-            Notes::open(note_id, notes_dir);
+            Notes::open(note_id, settings);
         }
     }
 
@@ -397,5 +401,13 @@ impl Notes {
         };
 
         return Ok(file_content);
+    }
+    
+    pub fn print_note_history(settings: &Settings) {
+        for note_id in settings.get_note_history_iterator() {
+            if let Some(note) = Database::get_note_where_id(&note_id) {
+                println!("{} {}", note_id.yellow(), note.note_name);
+            }
+        }
     }
 }

@@ -63,6 +63,9 @@ fn main() {
         .subcommand(SubCommand::with_name("random")
             .about("Opens a random note")
         )
+        .subcommand(SubCommand::with_name("history")
+            .about("Shows a history of recently visited notes")
+        )
         .subcommand(SubCommand::with_name("add")
             .about("Adds a new note to the zettelkasten")
             .arg(Arg::with_name("name")
@@ -93,6 +96,7 @@ fn main() {
         ("open", Some(open_matches)) => exec_open_command(&open_matches, &mut settings),
         ("search", Some(search_matches)) => exec_search_command(&search_matches, &mut settings),
         ("random", Some(random_matches)) => exec_random_command(&random_matches, &mut settings),
+        ("history", Some(history_matches)) => exec_history_command(&history_matches, &mut settings),
         ("add", Some(add_matches)) => exec_add_command(&add_matches, &mut settings),
         ("rm", Some(remove_matches)) => exec_rm_command(&remove_matches, &mut settings),
         _ => (),
@@ -150,7 +154,7 @@ fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
     let note_name = matches.value_of("name").unwrap_or_default();
 
     match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
-        Some(note_id) => Notes::open(&note_id, &settings.notes_dir),
+        Some(note_id) => Notes::open(&note_id, settings),
         None => {
             Message::error(&format!("note '{}' does not exist!", note_name));
         }
@@ -171,14 +175,22 @@ fn exec_random_command(_matches: &ArgMatches, settings: &mut Settings) {
         return;
     }
 
-    Notes::open_random_note(&settings.notes_dir);
+    Notes::open_random_note(settings);
+}
+
+fn exec_history_command(_matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+
+    Notes::print_note_history(settings);
 }
 
 fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
-    Notes::add(matches.value_of("name").unwrap_or_default(), &settings);
+    Notes::add(matches.value_of("name").unwrap_or_default(), settings);
 }
 
 fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {
