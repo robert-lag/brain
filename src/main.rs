@@ -1,7 +1,10 @@
+mod collection_tool;
 mod database;
 mod directory;
 mod message;
 mod note_property;
+mod note_tagging;
+mod note_type;
 mod note;
 mod notes;
 mod settings;
@@ -9,6 +12,7 @@ mod settings;
 use settings::Settings;
 use directory::Directory;
 use note_property::NoteProperty;
+use note_type::NoteType;
 use notes::Notes;
 use database::Database;
 use message::Message;
@@ -31,6 +35,11 @@ fn main() {
             .long("dir")
             .takes_value(true)
         )
+        .arg(Arg::with_name("no-backlinking")
+            .help("Don't use automatic backlinking of notes")
+            .short("b")
+            .long("no-backlinking")
+        )
         .subcommand(SubCommand::with_name("init")
             .about("Initializes a new zettelkasten directory")
         )
@@ -51,17 +60,45 @@ fn main() {
                 .required(true)
             )
         )
+        .subcommand(SubCommand::with_name("search")
+            .about("Searches notes with the specified search string")
+            .arg(Arg::with_name("search-string")
+                .help("The search string that is used to find notes")
+                .required(true)
+            )
+        )
+        .subcommand(SubCommand::with_name("random")
+            .about("Opens a random note")
+        )
+        .subcommand(SubCommand::with_name("history")
+            .about("Shows a history of recently visited notes")
+        )
         .subcommand(SubCommand::with_name("add")
             .about("Adds a new note to the zettelkasten")
             .arg(Arg::with_name("name")
                 .help("The name of the new note")
                 .required(true)
             )
+            .arg(Arg::with_name("topic")
+                .help("Marks the note as a topic (default)")
+                .short("t")
+                .long("topic")
+            )
+            .arg(Arg::with_name("quote")
+                .help("Marks the note as a quote")
+                .short("q")
+                .long("quote")
+            )
+            .arg(Arg::with_name("journal")
+                .help("Marks the note as a journal note")
+                .short("j")
+                .long("journal")
+            )
         )
         .subcommand(SubCommand::with_name("rm")
             .about("Removes a note from the zettelkasten")
             .arg(Arg::with_name("name")
-                .help("The name of the note to remove")
+                .help("The name or ID of the note to remove")
                 .required(true)
             )
         )
@@ -69,23 +106,32 @@ fn main() {
 
     let mut settings = Settings::new();
 
-    let notes_dir_path = Path::new(matches.value_of("directory").unwrap_or("./"));
-    settings.notes_dir = notes_dir_path.as_os_str().to_os_string();
+    let notes_dir = matches.value_of_os("directory").unwrap_or(OsStr::new("./"));
+    let notes_dir_path = Path::new(notes_dir);
+    settings.notes_dir = notes_dir.to_os_string();
     settings.zettelkasten_dir = notes_dir_path.join(".zettelkasten").into_os_string();
-
     Database::set_db_path(&settings.zettelkasten_dir);
+
+    if matches.is_present("no-backlinking") {
+        settings.backlinking_enabled = false;
+    } else {
+        settings.backlinking_enabled = true;
+    }
 
     match matches.subcommand() {
         ("init", Some(init_matches)) => exec_init_command(&init_matches, &mut settings),
         ("list", Some(list_matches)) => exec_list_command(&list_matches, &mut settings),
         ("open", Some(open_matches)) => exec_open_command(&open_matches, &mut settings),
+        ("search", Some(search_matches)) => exec_search_command(&search_matches, &mut settings),
+        ("random", Some(random_matches)) => exec_random_command(&random_matches, &mut settings),
+        ("history", Some(history_matches)) => exec_history_command(&history_matches, &mut settings),
         ("add", Some(add_matches)) => exec_add_command(&add_matches, &mut settings),
         ("rm", Some(remove_matches)) => exec_rm_command(&remove_matches, &mut settings),
         _ => (),
     }
 }
 
-fn exec_init_command (_matches: &ArgMatches, settings: &mut Settings) {
+fn exec_init_command(_matches: &ArgMatches, settings: &mut Settings) {
     if Directory::is_zettelkasten_dir(&settings.notes_dir, true) {
         println!("the specified directory is already a zettelkasten directory: {}",
             &settings.notes_dir.to_string_lossy());
@@ -94,7 +140,7 @@ fn exec_init_command (_matches: &ArgMatches, settings: &mut Settings) {
     initialize_zettelkasten(&settings.notes_dir);
 }
 
-fn initialize_zettelkasten (directory: &OsStr) {
+fn initialize_zettelkasten(directory: &OsStr) {
     let notes_path = Path::new(directory);
     let zettelkasten_dir_path = notes_path.join(".zettelkasten");
 
@@ -122,35 +168,72 @@ fn initialize_zettelkasten (directory: &OsStr) {
     Database::init();
 }
 
-fn exec_list_command (matches: &ArgMatches, settings: &mut Settings) {
+fn exec_list_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
     Notes::list(matches.value_of("count").unwrap_or("100").parse().unwrap_or(100));
 }
 
-fn exec_open_command (matches: &ArgMatches, settings: &mut Settings) {
+fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
     let note_name = matches.value_of("name").unwrap_or_default();
 
     match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
-        Some(note_id) => Notes::open(&note_id, &settings.notes_dir),
+        Some(note_id) => Notes::open(&note_id, settings),
         None => {
             Message::error(&format!("note '{}' does not exist!", note_name));
         }
     };
 }
 
-fn exec_add_command (matches: &ArgMatches, settings: &mut Settings) {
+fn exec_search_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
-    Notes::add(matches.value_of("name").unwrap_or_default(), &settings);
+    let search_string = matches.value_of("search-string").unwrap_or_default();
+
+    Notes::search(search_string);
 }
 
-fn exec_rm_command (matches: &ArgMatches, settings: &mut Settings) {
+fn exec_random_command(_matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+
+    Notes::open_random_note(settings);
+}
+
+fn exec_history_command(_matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+
+    Notes::print_note_history(settings);
+}
+
+fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+
+    let note_name = matches.value_of("name").unwrap_or_default();
+
+    let note_type;
+    if matches.is_present("quote") {
+        note_type = NoteType::Quote;
+    } else if matches.is_present("journal") {
+        note_type = NoteType::Journal;
+    } else {
+        note_type = NoteType::Topic;
+    }
+
+    Notes::add(note_name, note_type, settings);
+}
+
+fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }

@@ -1,10 +1,11 @@
 use crate::message::Message;
 use crate::note::Note;
 use crate::note_property::NoteProperty;
+use crate::note_tagging::NoteTagging;
 
 use chrono::prelude::*;
 use lazy_static::lazy_static;
-use rusqlite::{ Connection, params, named_params };
+use rusqlite::{ Error, Connection, Statement, params, named_params };
 use std::ffi::{ OsString, OsStr };
 use std::path::Path;
 use std::sync::Mutex;
@@ -68,14 +69,32 @@ impl Database {
         ).unwrap();
     }
 
-    pub fn get_note_id_where(note_property: NoteProperty, value: &str) -> Option<String> {
+    pub fn get_random_note_id() -> Option<String> {
         let conn = Database::get_connection();
-        println!("{}", note_property.to_db_string());
 
         let query_result = conn.query_row(
             "SELECT note_id
              FROM note
-             WHERE note_name = :value",
+             ORDER BY RANDOM()
+             LIMIT 1",
+            named_params!{ },
+            |row| row.get(0)
+        ).ok();
+
+        return query_result;
+    }
+
+    pub fn get_note_id_where(note_property: NoteProperty, value: &str) -> Option<String> {
+        let conn = Database::get_connection();
+        let query = format!(
+            "SELECT note_id
+             FROM note
+             WHERE {} = :value",
+             note_property.to_db_string()
+        );
+
+        let query_result = conn.query_row(
+            &query,
             named_params!{
                 ":value": value
             },
@@ -83,6 +102,27 @@ impl Database {
         ).ok();
 
         return query_result;
+    }
+
+    pub fn get_note_ids_where_property_is_like(note_property: NoteProperty, value: &str) -> Vec<String> {
+        let conn = Database::get_connection();
+        let query = format!(
+            "SELECT note_id
+             FROM note
+             WHERE {} LIKE ?;",
+             note_property.to_db_string()
+        );
+
+        let select_statement = match conn.prepare(&query) {
+            Ok(query_result) => query_result,
+            Err(error) => {
+                Message::error(&error.to_string());
+                return Vec::new();
+            }
+        };
+
+        let rows = Database::get_rows_of_prepared_query(select_statement, value);
+        return rows;
     }
 
     pub fn get_note_where_id(note_id: &str) -> Option<Note> {
@@ -100,7 +140,7 @@ impl Database {
                     note_id: row.get(0).unwrap(),
                     note_name: row.get(1).unwrap(),
                     file_name: row.get(2).unwrap(),
-                    creation_date: row.get(3).unwrap(),
+                    creation_date_time: Local.datetime_from_str(&row.get::<usize, String>(3).unwrap(), "%Y-%m-%d %H:%M:%S").unwrap(),
                 })
             }
         ).ok();
@@ -111,7 +151,7 @@ impl Database {
     pub fn get_all_recent_note_ids(count: i32) -> Vec<String> {
         let conn = Database::get_connection();
 
-        let mut select_statement = match conn.prepare(
+        let select_statement = match conn.prepare(
             "SELECT note_id
              FROM note
              ORDER BY creation_date DESC
@@ -124,28 +164,14 @@ impl Database {
             }
         };
 
-        let mut note_names = Vec::new();
-        let rows = match select_statement.query_map(
-            params![count],
-            |row| row.get(0)
-        ) {
-            Ok(query_result) => query_result,
-            Err(error) => {
-                Message::error(&error.to_string());
-                return Vec::new();
-            }
-        };
-
-        for note_name in rows {
-            note_names.push(note_name.unwrap());
-        }
-        return note_names;
+        let rows = Database::get_rows_of_prepared_query(select_statement, &count.to_string());
+        return rows;
     }
 
     pub fn get_tags_of_note(note_id: &str) -> Vec<String> {
         let conn = Database::get_connection();
 
-        let mut select_statement = match conn.prepare(
+        let select_statement = match conn.prepare(
             "SELECT tag_name
              FROM note_tagging
              WHERE note_id = ?;"
@@ -157,31 +183,17 @@ impl Database {
             }
         };
 
-        let mut tag_names = Vec::new();
-        let rows = match select_statement.query_map(
-            params![note_id],
-            |row| row.get(0)
-        ) {
-            Ok(query_result) => query_result,
-            Err(error) => {
-                Message::error(&error.to_string());
-                return Vec::new();
-            }
-        };
-
-        for tag_name in rows {
-            tag_names.push(tag_name.unwrap());
-        }
-        return tag_names;
+        let rows = Database::get_rows_of_prepared_query(select_statement, note_id);
+        return rows;
     }
 
     pub fn get_note_ids_with_tag(tag_name: &str) -> Vec<String> {
         let conn = Database::get_connection();
 
-        let mut select_statement = match conn.prepare(
+        let select_statement = match conn.prepare(
             "SELECT note_id
              FROM note_tagging
-             WHERE tag_name = '?';"
+             WHERE tag_name = ?;"
         ) {
             Ok(query_result) => query_result,
             Err(error) => {
@@ -190,9 +202,50 @@ impl Database {
             }
         };
 
-        let mut note_ids = Vec::new();
+        let rows = Database::get_rows_of_prepared_query(select_statement, tag_name);
+        return rows;
+    }
+
+    pub fn get_note_ids_with_tag_like(tag_name: &str) -> Vec<NoteTagging> {
+        let conn = Database::get_connection();
+
+        // Prepare statement
+        let mut select_statement = match conn.prepare(
+            "SELECT note_id, tag_name
+             FROM note_tagging
+             WHERE tag_name LIKE ?;"
+        ) {
+            Ok(query_result) => query_result,
+            Err(error) => {
+                Message::error(&error.to_string());
+                return Vec::new();
+            }
+        };
+
+        // Execute statement
         let rows = match select_statement.query_map(
             params![tag_name],
+            |row| Ok((row.get_unwrap(0), row.get_unwrap(1)))
+        ) {
+            Ok(query_result) => query_result,
+            Err(error) => {
+                Message::error(&error.to_string());
+                return Vec::new();
+            }
+        };
+
+        // Convert rows to vector
+        let mut row_vector = Vec::new();
+        for row in rows {
+            let row = row.unwrap();
+            row_vector.push(NoteTagging::from(row.0, row.1));
+        }
+        return row_vector;
+    }
+
+    fn get_rows_of_prepared_query(mut statement: Statement, parameter: &str) -> Vec<String> {
+        let rows = match statement.query_map(
+            params![parameter],
             |row| row.get(0)
         ) {
             Ok(query_result) => query_result,
@@ -202,10 +255,12 @@ impl Database {
             }
         };
 
-        for note_id in rows {
-            note_ids.push(note_id.unwrap());
+        // Convert rows to string vector
+        let mut row_vector = Vec::new();
+        for row in rows {
+            row_vector.push(row.unwrap());
         }
-        return note_ids;
+        return row_vector;
     }
 
     pub fn update_note_name_where(new_note_name: &str, note_property: NoteProperty, value: &str) {
@@ -239,7 +294,7 @@ impl Database {
             let tag_in_db: Option<String> = match conn.query_row(
                 "SELECT tag_name
                  FROM tag
-                 WHERE tag_name = ':tag_name';",
+                 WHERE tag_name = :tag_name",
                 named_params!{
                     ":tag_name": tag_name
                 },
@@ -247,8 +302,13 @@ impl Database {
             ) {
                 Ok(query_result) => query_result,
                 Err(error) => {
-                    Message::error(&error.to_string());
-                    return;
+                    if error == Error::QueryReturnedNoRows {
+                        None
+                    }
+                    else {
+                        Message::error(&format!("insert-tag: {}", &error.to_string()));
+                        return;
+                    }
                 }
             };
 
@@ -259,12 +319,12 @@ impl Database {
                     "INSERT INTO tag (tag_name)
                      VALUES (:tag_name)",
                     named_params!{
-                         ":tag:name": tag_name
+                         ":tag_name": tag_name
                     }
                 ) {
                     Ok(_) => {  }
                     Err(error) => {
-                        Message::error(&error.to_string());
+                        Message::error(&format!("insert-tag: {}", &error.to_string()));
                         return;
                     }
                 };
@@ -284,8 +344,13 @@ impl Database {
             ) {
                 Ok(query_result) => query_result,
                 Err(error) => {
-                    Message::error(&error.to_string());
-                    return;
+                    if error == Error::QueryReturnedNoRows {
+                        None
+                    }
+                    else {
+                        Message::error(&format!("insert-tag: {}", &error.to_string()));
+                        return;
+                    }
                 }
             };
 
@@ -296,13 +361,13 @@ impl Database {
                     "INSERT INTO note_tagging (tag_name, note_id)
                      VALUES (:tag_name, :note_id)",
                     named_params!{
-                         ":tag:name": tag_name,
+                         ":tag_name": tag_name,
                          ":note_id": note_id
                     }
                 ) {
                     Ok(_) => {  }
                     Err(error) => {
-                        Message::error(&error.to_string());
+                        Message::error(&format!("insert-note-tagging: {}", &error.to_string()));
                         return;
                     }
                 };
@@ -322,7 +387,7 @@ impl Database {
         ) {
             Ok(_) => {  }
             Err(error) => {
-                Message::error(&error.to_string());
+                Message::error(&format!("delete-note: {}", &error.to_string()));
                 return;
             }
         };
@@ -340,7 +405,7 @@ impl Database {
         ) {
             Ok(_) => {  }
             Err(error) => {
-                Message::error(&error.to_string());
+                Message::error(&format!("delete-tag: {}", &error.to_string()));
                 return;
             }
         };
@@ -359,7 +424,7 @@ impl Database {
         ) {
             Ok(_) => {  }
             Err(error) => {
-                Message::error(&error.to_string());
+                Message::error(&format!("delete-note-tagging: {}", &error.to_string()));
                 return;
             }
         };
