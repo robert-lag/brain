@@ -9,17 +9,74 @@ use crate::settings::Settings;
 
 use chrono::prelude::*;
 use colored::*;
+use indoc::indoc;
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::hash_map::RandomState;
 use std::collections::hash_set::Difference;
 use std::collections::HashSet;
 use std::env;
 use std::ffi::OsStr;
-use std::fs::{ self, File };
-use std::io::{ self, Error, Read, Write };
+use std::fs::{ self, File, OpenOptions };
+use std::io::{ self, Error, ErrorKind, Read, Write };
 use std::path::{ Path, PathBuf };
 use std::process::Command;
 use yaml_rust::{ YamlLoader, Yaml };
+
+lazy_static! {
+    static ref NOTE_LINK_VALIDATOR: Regex = Regex::new(r"(?x)
+        \[\[
+            ([a-zA-Z0-9]+?)     # $1 = Link text
+        \]\]
+    ").unwrap();
+    static ref NOTE_FORMAT_VALIDATOR: Regex = Regex::new(r##"(?x)
+        (                                                   # $1 = yaml header
+            ^
+            \n*
+            ---
+            \n?
+            ([\(\){}\[\]\-a-zA-Z0-9\s*+\#/\\"'´`_.:,;]*)    # $2 = yaml text
+            \n?
+            ---
+            \n?
+        )
+        ([\(\){}\[\]\-a-zA-Z0-9\s*+\#/\\"'´`_.:,;]*)        # $3 = body of the note
+        $
+    "##).unwrap();
+    static ref NOTE_CONTENT_BACKLINK_VALIDATOR: Regex = Regex::new(r"(?x)
+        (                                                   # $1 = text before backlinks
+            ^
+            \n*
+            ---
+            \n?
+            [\(\){}\[\]\-a-zA-Z0-9\s*+\#/\\'´`_.:,;]*
+        )
+        (                                                   # $2 = backlinks category
+            backlinks:\s?
+            \[
+            \s+
+            (                                               # $3 = all backlinks
+                (                                           # $4 = single backlink
+                    \s?
+                    \[\[[a-zA-Z0-9]+\]\]
+                    [,]?
+                )*
+            )
+            \s*
+            \]
+            [ \t]*
+        )
+        (                                                   # $5 = text after backlinks
+            \n?
+            [\(\){}\[\]\-a-zA-Z0-9\s*+\#/\\'´`_.:,;]*
+            \n?
+            ---
+            \n?
+            [\(\){}\[\]\-a-zA-Z0-9\s*+\#/\\'´`_.:,;]*
+            $
+        )
+    ").unwrap();
+}
 
 pub struct Notes;
 impl Notes {
@@ -283,9 +340,103 @@ impl Notes {
                 return;
             }
         };
-        settings.add_to_note_history(note_id);
 
+        settings.add_to_note_history(note_id);
+        if settings.backlinking_enabled {
+            Notes::create_backlinks_by_searching(&note, settings);
+        }
         Notes::check_yaml_header_of(&note, settings);
+    }
+
+    fn create_backlinks_by_searching(note: &Note, settings: &Settings) {
+        let absolute_note_file_path = PathBuf::from(&settings.notes_dir).join(&note.file_name);
+        let note_content = match Notes::get_content_from_file(absolute_note_file_path.as_os_str()) {
+            Ok(value) => value,
+            Err(error) => {
+                Message::error(&format!("create_backlinks: couldn't read content of note '{} {}': {}",
+                    note.note_id.yellow(),
+                    note.note_name,
+                    error));
+                return;
+            }
+        };
+
+        if let Some(note_format_match) = NOTE_FORMAT_VALIDATOR.captures(&note_content) {
+            let note_body = note_format_match.get(3).unwrap().as_str();
+            for note_link_match in NOTE_LINK_VALIDATOR.captures_iter(note_body) {
+                let linked_note_id = note_link_match.get(1).unwrap().as_str();
+                if let Some(linked_note) = Database::get_note_where_id(linked_note_id) {
+                    Notes::add_backlink_to(&linked_note, &note.note_id, settings)
+                }
+            }
+        } else {
+            Message::error(&format!("create_backlinks: couldn't search for links in '{} {}': note does not have the correct format",
+                note.note_id.yellow(),
+                note.note_name));
+            Message::display_correct_note_format();
+            return;
+        }
+    }
+
+    fn add_backlink_to(note: &Note, backlink_id: &str, settings: &Settings) {
+        let absolute_note_file_path = PathBuf::from(&settings.notes_dir).join(&note.file_name);
+        let note_content = match Notes::get_content_from_file(&absolute_note_file_path.as_os_str()) {
+            Ok(value) => value,
+            Err(error) => {
+                Message::error(&format!("add_backlink: couldn't read note file '{}': {}",
+                    &absolute_note_file_path.to_string_lossy(),
+                    error));
+                return;
+            }
+        };
+
+        if let Some(note_content_match) = NOTE_CONTENT_BACKLINK_VALIDATOR.captures(&note_content) {
+            let text_before_backlinks = note_content_match.get(1).unwrap().as_str().to_string();
+            let backlinks = note_content_match.get(3).unwrap().as_str();
+            let text_after_backlinks = note_content_match.get(5).unwrap().as_str();
+
+            if backlink_exists_in_string(backlink_id, backlinks) {
+                return;
+            }
+
+            let backlinks_string = create_backlinks_string_from(backlinks, backlink_id);
+            let new_note_content = text_before_backlinks + &backlinks_string + text_after_backlinks;
+
+            if let Err(error) = Notes::replace_content_of_file(&absolute_note_file_path, new_note_content.as_bytes()) {
+                Message::error(&format!("add_backlink: couldn't change contents of note '{} {}': {}",
+                    note.note_id.yellow(),
+                    note.note_name,
+                    error));  
+            };
+        } else {
+            Message::error(&format!("couldn't add backlink to '{} {}': note does not have the correct format",
+                note.note_id.yellow(),
+                note.note_name));
+            return;
+        }
+
+        fn create_backlinks_string_from(existing_backlinks_list: &str, new_backlink_id: &str) -> String {
+            let mut new_backlinks_list = String::from(existing_backlinks_list);
+            
+            if new_backlinks_list.len() > 0 {
+                new_backlinks_list.push_str(", ");
+            }
+            new_backlinks_list.push_str(&format!("[[{}]]", new_backlink_id));
+
+            let backlinks_string = format!("backlinks: [ {} ]", new_backlinks_list);
+            return backlinks_string;
+        }
+
+        fn backlink_exists_in_string(backlink_id: &str, existing_backlinks_string: &str) -> bool {
+            for existing_backlink in NOTE_LINK_VALIDATOR.captures_iter(existing_backlinks_string) {
+                let existing_backlink_id = existing_backlink.get(1).unwrap().as_str();
+                if existing_backlink_id == backlink_id {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     fn check_yaml_header_of(note: &Note, settings: &mut Settings) {
@@ -294,7 +445,7 @@ impl Notes {
         let yaml_header = match Notes::get_yaml_header_of(absolute_note_file_path.as_os_str()) {
             Ok(header) => header,
             Err(error) => {
-                Message::error(&format!("couldn't read note file: '{}'", error));
+                Message::error(&format!("couldn't read header of note file: {}", error));
                 Notes::show_open_file_dialog_for(&note.note_id, settings);
                 return;
             }
@@ -309,10 +460,11 @@ impl Notes {
         };
         let note_metadata = &yaml_files[0];
 
-        let is_check_complete = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name, settings);
+        let mut is_check_complete;
+        is_check_complete = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name, settings);
         if !is_check_complete { return; }
 
-        let is_check_complete = check_metadata_tags_of(&note.note_id, note_metadata, settings);
+        is_check_complete = check_metadata_tags_of(&note.note_id, note_metadata, settings);
         if !is_check_complete { return; }
 
         fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str, settings: &mut Settings) -> bool {
@@ -322,7 +474,13 @@ impl Notes {
 
                     if whitespace_validator.is_match(new_note_name) {
                         Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
-                        Message::example("---\nname: \"note name\"\n---");
+                        Message::example(indoc! {r#"
+                            ---
+
+                            name: "note name"
+
+                            ---
+                        "#});
                         Notes::show_open_file_dialog_for(note_id, settings);
                         return false;
                     } else if new_note_name != original_note_name {
@@ -331,7 +489,13 @@ impl Notes {
                 }
                 None => {
                     Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
-                    Message::example("---\nname: \"note name\"\n---");
+                    Message::example(indoc! {r#"
+                        ---
+
+                        name: "note name"
+
+                        ---
+                    "#});
                     Notes::show_open_file_dialog_for(note_id, settings);
                     return false;
                 }
@@ -349,9 +513,18 @@ impl Notes {
                     }
                 }
                 None => {
-                    println!("{} this note doesn't have any tags! It will be difficult to find again!", "warning:".bold().yellow());
-                    println!("Please add a few appropriate tags!");
-                    println!("\n{}\n---\ntags: \"[ first-tag, second-tag, third-tag ]\"\n---\n", "example:".bold().yellow());
+                    Message::warning(indoc! {"
+                        this note doesn't have any tags! It will be difficult to find again!
+                        please add a few appropriate tags!
+
+                    "});
+                    Message::example(indoc! {r##"
+                        ---
+
+                        tags: [ first-tag, #second-tag, third-tag ]
+
+                        ---
+                    "##});
                     Notes::show_open_file_dialog_for(note_id, settings);
                     return false;
                 }
@@ -361,29 +534,21 @@ impl Notes {
         }
     }
 
-    fn show_open_file_dialog_for(note_id: &str, settings: &mut Settings) {
-        print!("Do you want to open the file again? [Y/n] ");
-        io::stdout().flush().unwrap();
-
-        let mut open_file_again = String::new();
-        match io::stdin().read_line(&mut open_file_again) {
-            Ok(_) => { },
-            Err(error) => Message::error(&error.to_string())
-        }
-
-        if !(open_file_again.trim().to_lowercase() == "n") {
-            Notes::open(note_id, settings);
-        }
-    }
-
     fn get_yaml_header_of(file_path: &OsStr) -> Result<String, Error> {
         let note_content = match Notes::get_content_from_file(file_path) {
             Ok(file_content) => file_content,
             Err(error) => return Err(error)
         };
 
-        let yaml_start_index = note_content.find("---\n").unwrap();
-        let yaml_end_index = note_content[yaml_start_index+3..].find("---").unwrap();
+        let yaml_start_index = match note_content.find("---\n") {
+            Some(value) => value,
+            None => return Err(Error::from(ErrorKind::NotFound)),
+        };
+        let yaml_end_index = match note_content[yaml_start_index+3..].find("---") {
+            Some(value) => value,
+            None => return Err(Error::from(ErrorKind::NotFound)),
+        };
+
         let yaml_header = &note_content[yaml_start_index+3..yaml_end_index+3];
 
         return Ok(yaml_header.to_string());
@@ -403,7 +568,37 @@ impl Notes {
 
         return Ok(file_content);
     }
+
+    fn replace_content_of_file<P: AsRef<Path>>(path: P, new_file_content: &[u8]) -> Result<(), Error> {
+        let mut note_file = match OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(path) {
+            Ok(opened_file) => opened_file,
+            Err(error) => return Err(error),
+        };
+        if let Err(error) = note_file.write(new_file_content) {
+            return Err(error);
+        }
+
+        return Ok(());
+    }
     
+    fn show_open_file_dialog_for(note_id: &str, settings: &mut Settings) {
+        print!("Do you want to open the file again? [Y/n] ");
+        io::stdout().flush().unwrap();
+
+        let mut open_file_again = String::new();
+        match io::stdin().read_line(&mut open_file_again) {
+            Ok(_) => { },
+            Err(error) => Message::error(&error.to_string())
+        }
+
+        if !(open_file_again.trim().to_lowercase() == "n") {
+            Notes::open(note_id, settings);
+        }
+    }
+
     pub fn print_note_history(settings: &Settings) {
         for note_id in settings.get_note_history_iterator() {
             if let Some(note) = Database::get_note_where_id(&note_id) {
