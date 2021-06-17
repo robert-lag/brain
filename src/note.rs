@@ -1,5 +1,4 @@
 use chrono::{ DateTime, Local };
-use std::hash::{Hash, Hasher};
 
 pub struct Note {
     pub note_id: String,
@@ -16,19 +15,5 @@ impl Note {
             file_name,
             creation_date_time,
         };
-    }
-}
-
-impl PartialEq for Note {
-    fn eq(&self, other: &Self) -> bool {
-        self.note_id == other.note_id
-    }
-}
-
-impl Eq for Note {}
-
-impl Hash for Note {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.note_id.hash(state);
     }
 }

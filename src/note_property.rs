@@ -4,8 +4,8 @@ use std::fmt;
 pub enum NoteProperty {
     NoteId,
     NoteName,
-    FileName,
-    CreationDate
+    // FileName,
+    // CreationDate,
 }
 
 impl NoteProperty {
@@ -13,8 +13,8 @@ impl NoteProperty {
         match self {
             NoteProperty::NoteId => "note_id".to_string(),
             NoteProperty::NoteName => "note_name".to_string(),
-            NoteProperty::FileName => "file_name".to_string(),
-            NoteProperty::CreationDate => "creation_date".to_string(),
+            // NoteProperty::FileName => "file_name".to_string(),
+            // NoteProperty::CreationDate => "creation_date".to_string(),
         }
     }
 }

@@ -30,26 +30,26 @@ lazy_static! {
         \]\]
     ").unwrap();
     static ref NOTE_FORMAT_VALIDATOR: Regex = Regex::new(r##"(?x)
-        (                                                   # $1 = yaml header
+        (                                                               # $1 = yaml header
             ^
+            \s*
+            ---[ \t]*
             \n*
-            ---
-            \n?
-            ([\(\){}\[\]\-a-zA-Z0-9\s*+\#/\\"'´`_.:,;]*)    # $2 = yaml text
-            \n?
-            ---
+            ([\s\(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*)      # $2 = yaml text
+            \n*
+            ---[ \t]*
             \n?
         )
-        ([\(\){}\[\]\-a-zA-Z0-9\s*+\#/\\"'´`_.:,;]*)        # $3 = body of the note
+        ([\s\(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*)          # $3 = body of the note
         $
     "##).unwrap();
-    static ref NOTE_CONTENT_BACKLINK_VALIDATOR: Regex = Regex::new(r"(?x)
+    static ref NOTE_CONTENT_BACKLINK_VALIDATOR: Regex = Regex::new(r##"(?x)
         (                                                   # $1 = text before backlinks
             ^
+            \s*
+            ---[ \t]*
             \n*
-            ---
-            \n?
-            [\(\){}\[\]\-a-zA-Z0-9\s*+\#/\\'´`_.:,;]*
+            [\s\(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*
         )
         (                                                   # $2 = backlinks category
             backlinks:\s?
@@ -68,14 +68,18 @@ lazy_static! {
         )
         (                                                   # $5 = text after backlinks
             \n?
-            [\(\){}\[\]\-a-zA-Z0-9\s*+\#/\\'´`_.:,;]*
+            [\s\(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*
+            \n*
+            ---[ \t]*
             \n?
-            ---
-            \n?
-            [\(\){}\[\]\-a-zA-Z0-9\s*+\#/\\'´`_.:,;]*
+            [\s\(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*
             $
         )
-    ").unwrap();
+    "##).unwrap();
+    static ref NOTE_NAME_VALIDATOR: Regex = Regex::new(r##"(?x)
+        ^[ \(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*$
+    "##).unwrap();
+    static ref WHITESPACE_VALIDATOR: Regex = Regex::new(r"^\s*$").unwrap();
 }
 
 pub struct Notes;
@@ -181,10 +185,14 @@ impl Notes {
 
     pub fn add(note_name: &str, note_type: NoteType, settings: &mut Settings) {
         let template_path = Path::new(&settings.zettelkasten_dir).join("note-template.md");
-
         if !template_path.exists() {
-            Message::error(&format!("the note template couldn't be found at '{}'",
+            Message::error(&format!("add_note: the note template couldn't be found at '{}'",
                 template_path.to_string_lossy()));
+            return;
+        }
+
+        if !NOTE_NAME_VALIDATOR.is_match(note_name) {
+            Message::error(&format!("add_note: the note name contains illegal characters"));
             return;
         }
 
@@ -219,7 +227,7 @@ impl Notes {
         let note_content = match Notes::get_content_from_file(&template_path) {
             Ok(file_content) => file_content,
             Err(error) => {
-                Message::error(&format!("couldn't read template file: {}", error));
+                Message::error(&format!("create_note_from_template: couldn't read template file: {}", error));
                 return None;
             }
         };
@@ -230,12 +238,13 @@ impl Notes {
         let mut new_note = match File::create(&file_path) {
             Ok(created_file) => created_file,
             Err(error) => {
-                Message::error(&format!("couldn't create file: {}", error));
+                Message::error(&format!("create_note_from_template: couldn't create file: {}", error));
                 return None;
             }
         };
+
         if let Err(error) = new_note.write(note_content.as_bytes()) {
-            Message::warning(&format!("couldn't apply template to created note: {}", error));
+            Message::warning(&format!("create_note_from_template: couldn't apply template to created note: {}", error));
         };
 
         return Some(Note::new(note_id, note_name.to_string(), file_name, creation_date_time));
@@ -245,15 +254,15 @@ impl Notes {
         let note_id = match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
             Some(value) => value,
             None => {
-                // Message::error(&format!("note couldn't be removed: the note '{}' does not exist!", note_name));
-                // return;
+                // try if the 'note name' is already the note id
+                // (if not then the next step would cause an error which is on purpose)
                 note_name.to_string()
             }
         };
         let note = match Database::get_note_where_id(&note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("note couldn't be removed: the note id or note name '{}' does not exist!", note_id));
+                Message::error(&format!("remove_note: note couldn't be removed: the note id or note name '{}' does not exist!", note_id));
                 return;
             }
         };
@@ -275,7 +284,7 @@ impl Notes {
         match fs::remove_file(&note_file_path){
             Ok(_) => {  },
             Err(error) => {
-                Message::error(&format!("note file '{}' couldn't be removed: {}", note_file_path.to_string_lossy(), error));
+                Message::error(&format!("remove_note: note file '{}' couldn't be removed: {}", note_file_path.to_string_lossy(), error));
                 return;
             }
         };
@@ -285,7 +294,7 @@ impl Notes {
         let note_id = match Database::get_random_note_id() {
             Some(value) => value,
             None => {
-                Message::error("couldn't find a random note");
+                Message::error("open_random_note: couldn't find a random note");
                 return;
             }
         };
@@ -293,7 +302,7 @@ impl Notes {
         let note = match Database::get_note_where_id(&note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("couldn't open note: the note id '{}' does not exist!", note_id));
+                Message::error(&format!("open_random_note: couldn't open note: the note id '{}' does not exist!", note_id));
                 return;
             }
         };
@@ -306,7 +315,7 @@ impl Notes {
         let note = match Database::get_note_where_id(note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("couldn't open note: the note id '{}' does not exist!", note_id));
+                Message::error(&format!("open_note: the note id '{}' does not exist!", note_id));
                 return;
             }
         };
@@ -317,7 +326,7 @@ impl Notes {
         let editor = match env::var("EDITOR") {
             Ok(value) => value,
             Err(error) => {
-                Message::error(&format!("couldn't read the EDITOR environment variable: '{}'", error));
+                Message::error(&format!("open_note: couldn't read the EDITOR environment variable: '{}'", error));
                 return;
             }
         };
@@ -325,7 +334,7 @@ impl Notes {
         let absolute_file_path = match relative_file_path.canonicalize() {
             Ok(path) => path,
             Err(error) => {
-                Message::error(&format!("couldn't get the absolute path of {}: '{}'",
+                Message::error(&format!("open_note: couldn't get the absolute path of {}: '{}'",
                     &note.file_name,
                     error));
                 return;
@@ -336,7 +345,10 @@ impl Notes {
         match Command::new(&editor).arg(&absolute_file_path).status() {
             Ok(_) => {  },
             Err(error) => {
-                Message::error(&format!("couldn't open the note '{}': '{}'", &note.file_name, error));
+                Message::error(&format!("open_note: couldn't open the note '{}' with '{}': '{}'",
+                    &editor,
+                    &note.file_name,
+                    error));
                 return;
             }
         };
@@ -350,7 +362,7 @@ impl Notes {
 
     fn create_backlinks_by_searching(note: &Note, settings: &Settings) {
         let absolute_note_file_path = PathBuf::from(&settings.notes_dir).join(&note.file_name);
-        let note_content = match Notes::get_content_from_file(absolute_note_file_path.as_os_str()) {
+        let note_content = match Notes::get_content_from_file(&absolute_note_file_path) {
             Ok(value) => value,
             Err(error) => {
                 Message::error(&format!("create_backlinks: couldn't read content of note '{} {}': {}",
@@ -380,7 +392,7 @@ impl Notes {
 
     fn add_backlink_to(note: &Note, backlink_id: &str, settings: &Settings) {
         let absolute_note_file_path = PathBuf::from(&settings.notes_dir).join(&note.file_name);
-        let note_content = match Notes::get_content_from_file(&absolute_note_file_path.as_os_str()) {
+        let note_content = match Notes::get_content_from_file(&absolute_note_file_path) {
             Ok(value) => value,
             Err(error) => {
                 Message::error(&format!("add_backlink: couldn't read note file '{}': {}",
@@ -442,10 +454,10 @@ impl Notes {
     fn check_yaml_header_of(note: &Note, settings: &mut Settings) {
         let notes_dir = &settings.notes_dir;
         let absolute_note_file_path = PathBuf::from(notes_dir).join(&note.file_name);
-        let yaml_header = match Notes::get_yaml_header_of(absolute_note_file_path.as_os_str()) {
+        let yaml_header = match Notes::get_yaml_header_of(absolute_note_file_path) {
             Ok(header) => header,
             Err(error) => {
-                Message::error(&format!("couldn't read header of note file: {}", error));
+                Message::error(&format!("check_yaml_header: couldn't read header of note file: {}", error));
                 Notes::show_open_file_dialog_for(&note.note_id, settings);
                 return;
             }
@@ -453,7 +465,7 @@ impl Notes {
         let yaml_files = match YamlLoader::load_from_str(&yaml_header) {
             Ok(yaml_vector) => yaml_vector,
             Err(error) => {
-                Message::error(&format!("couldn't parse yaml header: '{}'", error));
+                Message::error(&format!("check_yaml_header: couldn't parse yaml header: '{}'", error));
                 Notes::show_open_file_dialog_for(&note.note_id, settings);
                 return;
             }
@@ -470,91 +482,90 @@ impl Notes {
         fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str, settings: &mut Settings) -> bool {
             match note_metadata["name"].as_str() {
                 Some(new_note_name) => {
-                    let whitespace_validator = Regex::new(r"^\s*$").unwrap();
-
-                    if whitespace_validator.is_match(new_note_name) {
-                        Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
-                        Message::example(indoc! {r#"
-                            ---
-
-                            name: "note name"
-
-                            ---
-                        "#});
-                        Notes::show_open_file_dialog_for(note_id, settings);
+                    if WHITESPACE_VALIDATOR.is_match(new_note_name) {
+                        show_missing_note_name_warning_for(note_id, settings);
                         return false;
                     } else if new_note_name != original_note_name {
                         Database::update_note_name_where(new_note_name, NoteProperty::NoteId, note_id);
                     }
                 }
                 None => {
-                    Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
-                    Message::example(indoc! {r#"
-                        ---
-
-                        name: "note name"
-
-                        ---
-                    "#});
-                    Notes::show_open_file_dialog_for(note_id, settings);
+                    show_missing_note_name_warning_for(note_id, settings);
                     return false;
                 }
             }
 
             return true;
+
+            fn show_missing_note_name_warning_for(note_id: &str, settings: &mut Settings) {
+                Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
+                Message::example(indoc! {r#"
+                    ---
+
+                    name: "note name"
+
+                    ---
+                "#});
+                Notes::show_open_file_dialog_for(note_id, settings);
+            }
         }
 
         fn check_metadata_tags_of(note_id: &str, note_metadata: &Yaml, settings: &mut Settings) -> bool {
             match note_metadata["tags"].as_vec() {
                 Some(tags) => {
+                    if tags.len() == 0 {
+                        show_missing_tags_warning_for(note_id, settings);
+                        return false;
+                    }
+
                     for tag in tags.iter() {
                         let tag = tag.as_str().unwrap();
                         Database::insert_tag_for_note(tag, note_id);
                     }
                 }
                 None => {
-                    Message::warning(indoc! {"
-                        this note doesn't have any tags! It will be difficult to find again!
-                        please add a few appropriate tags!
-
-                    "});
-                    Message::example(indoc! {r##"
-                        ---
-
-                        tags: [ first-tag, #second-tag, third-tag ]
-
-                        ---
-                    "##});
-                    Notes::show_open_file_dialog_for(note_id, settings);
+                    show_missing_tags_warning_for(note_id, settings);
                     return false;
                 }
             }
 
             return true;
+
+            fn show_missing_tags_warning_for(note_id: &str, settings: &mut Settings) {
+                Message::warning(indoc! {"
+                    this note doesn't have any tags! It will be difficult to find again!
+                    please add a few appropriate tags!
+
+                "});
+                Message::example(indoc! {r##"
+                    ---
+
+                    tags: [ first-tag, #second-tag, third-tag ]
+
+                    ---
+                "##});
+
+                Notes::show_open_file_dialog_for(note_id, settings);
+            }
         }
     }
 
-    fn get_yaml_header_of(file_path: &OsStr) -> Result<String, Error> {
+    fn get_yaml_header_of<P: AsRef<Path>>(file_path: P) -> Result<String, Error> {
         let note_content = match Notes::get_content_from_file(file_path) {
             Ok(file_content) => file_content,
             Err(error) => return Err(error)
         };
 
-        let yaml_start_index = match note_content.find("---\n") {
-            Some(value) => value,
-            None => return Err(Error::from(ErrorKind::NotFound)),
-        };
-        let yaml_end_index = match note_content[yaml_start_index+3..].find("---") {
-            Some(value) => value,
-            None => return Err(Error::from(ErrorKind::NotFound)),
-        };
+        if let Some(note_content_match) = NOTE_FORMAT_VALIDATOR.captures(&note_content) {
+            let yaml_header = note_content_match.get(2).unwrap().as_str();
+            return Ok(yaml_header.to_string());
+        } else {
+            return Err(Error::new(ErrorKind::NotFound, "yaml header not found"));
+        }
 
-        let yaml_header = &note_content[yaml_start_index+3..yaml_end_index+3];
-
-        return Ok(yaml_header.to_string());
     }
 
-    fn get_content_from_file(path: &OsStr) -> Result<String, Error> {
+    fn get_content_from_file<P: AsRef<Path>>(path: P) -> Result<String, Error> {
         let mut file = match File::open(path) {
             Ok(opened_file) => opened_file,
             Err(error) => return Err(error)
@@ -591,7 +602,11 @@ impl Notes {
         let mut open_file_again = String::new();
         match io::stdin().read_line(&mut open_file_again) {
             Ok(_) => { },
-            Err(error) => Message::error(&error.to_string())
+            Err(error) => {
+                Message::error(&format!("show_open_file_dialog: couldn't read user input: {}",
+                    error));
+                return;
+            }
         }
 
         if !(open_file_again.trim().to_lowercase() == "n") {
