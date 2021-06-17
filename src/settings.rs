@@ -8,7 +8,8 @@ use std::io::{ Write, Read };
 pub struct Settings {
     pub notes_dir: OsString,
     pub zettelkasten_dir: OsString,
-    note_history: VecDeque<String>
+    pub backlinking_enabled: bool,
+    note_history: VecDeque<String>,
 }
 
 impl Settings {
@@ -16,7 +17,8 @@ impl Settings {
         let mut settings = Settings {
             notes_dir: OsString::new(),
             zettelkasten_dir: OsString::new(),
-            note_history: VecDeque::new()
+            note_history: VecDeque::new(),
+            backlinking_enabled: true,
         };
         settings.load_note_history();
         return settings;

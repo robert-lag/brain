@@ -35,6 +35,11 @@ fn main() {
             .long("dir")
             .takes_value(true)
         )
+        .arg(Arg::with_name("no-backlinking")
+            .help("Don't use automatic backlinking of notes")
+            .short("b")
+            .long("no-backlinking")
+        )
         .subcommand(SubCommand::with_name("init")
             .about("Initializes a new zettelkasten directory")
         )
@@ -78,19 +83,16 @@ fn main() {
                 .help("Marks the note as a topic (default)")
                 .short("t")
                 .long("topic")
-                .takes_value(false)
             )
             .arg(Arg::with_name("quote")
                 .help("Marks the note as a quote")
                 .short("q")
                 .long("quote")
-                .takes_value(false)
             )
             .arg(Arg::with_name("journal")
                 .help("Marks the note as a journal note")
                 .short("j")
                 .long("journal")
-                .takes_value(false)
             )
         )
         .subcommand(SubCommand::with_name("rm")
@@ -108,8 +110,13 @@ fn main() {
     let notes_dir_path = Path::new(notes_dir);
     settings.notes_dir = notes_dir.to_os_string();
     settings.zettelkasten_dir = notes_dir_path.join(".zettelkasten").into_os_string();
-
     Database::set_db_path(&settings.zettelkasten_dir);
+
+    if matches.is_present("no-backlinking") {
+        settings.backlinking_enabled = false;
+    } else {
+        settings.backlinking_enabled = true;
+    }
 
     match matches.subcommand() {
         ("init", Some(init_matches)) => exec_init_command(&init_matches, &mut settings),
