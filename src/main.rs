@@ -102,6 +102,13 @@ fn main() {
                 .required(true)
             )
         )
+        .subcommand(SubCommand::with_name("get-name")
+            .about("Returns the name of the note with the specified id from the zettelkasten")
+            .arg(Arg::with_name("id")
+                .help("The ID of the note to remove")
+                .required(true)
+            )
+        )
         .get_matches();
 
     let mut settings = Settings::new();
@@ -127,6 +134,7 @@ fn main() {
         ("history", Some(history_matches)) => exec_history_command(&history_matches, &mut settings),
         ("add", Some(add_matches)) => exec_add_command(&add_matches, &mut settings),
         ("rm", Some(remove_matches)) => exec_rm_command(&remove_matches, &mut settings),
+        ("get-name", Some(get_name_matches)) => exec_get_name_command(&get_name_matches, &mut settings),
         _ => (),
     }
 }
@@ -240,4 +248,13 @@ fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {
         return;
     }
     Notes::remove(matches.value_of("name").unwrap_or_default(), &settings.notes_dir);
+}
+
+fn exec_get_name_command(matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+    
+    let note_id = matches.value_of("id").unwrap_or_default();
+    Notes::print_note_name_of(note_id);
 }
