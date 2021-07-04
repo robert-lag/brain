@@ -1,5 +1,6 @@
 ---
 
+id: <note-id>
 name: <note-name>
 date: <creation-date>
 tags: [ ]

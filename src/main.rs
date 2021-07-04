@@ -184,7 +184,9 @@ fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
     match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
         Some(note_id) => Notes::open(&note_id, settings),
         None => {
-            Message::error(&format!("note '{}' does not exist!", note_name));
+            // Maybe the note id was given instead of the name
+            let note_id = note_name;
+            Notes::open(&note_id, settings);
         }
     };
 }

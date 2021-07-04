@@ -232,6 +232,7 @@ impl Notes {
             }
         };
         let note_content = note_content
+            .replace("<note-id>", &note_id)
             .replace("<note-name>", &note_name)
             .replace("<creation-date>", &creation_timestamp);
 
