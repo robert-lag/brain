@@ -102,6 +102,20 @@ fn main() {
                 .required(true)
             )
         )
+        .subcommand(SubCommand::with_name("get-name")
+            .about("Returns the name of the note with the specified id from the zettelkasten")
+            .arg(Arg::with_name("id")
+                .help("The ID of the note")
+                .required(true)
+            )
+        )
+        .subcommand(SubCommand::with_name("get-file-name")
+            .about("Returns the name of the note file with the specified id from the zettelkasten")
+            .arg(Arg::with_name("id")
+                .help("The ID of the note")
+                .required(true)
+            )
+        )
         .get_matches();
 
     let mut settings = Settings::new();
@@ -127,6 +141,8 @@ fn main() {
         ("history", Some(history_matches)) => exec_history_command(&history_matches, &mut settings),
         ("add", Some(add_matches)) => exec_add_command(&add_matches, &mut settings),
         ("rm", Some(remove_matches)) => exec_rm_command(&remove_matches, &mut settings),
+        ("get-name", Some(get_name_matches)) => exec_get_name_command(&get_name_matches, &mut settings),
+        ("get-file-name", Some(get_file_name_matches)) => exec_get_file_name_command(&get_file_name_matches, &mut settings),
         _ => (),
     }
 }
@@ -184,7 +200,9 @@ fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
     match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
         Some(note_id) => Notes::open(&note_id, settings),
         None => {
-            Message::error(&format!("note '{}' does not exist!", note_name));
+            // Maybe the note id was given instead of the name
+            let note_id = note_name;
+            Notes::open(&note_id, settings);
         }
     };
 }
@@ -238,4 +256,22 @@ fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {
         return;
     }
     Notes::remove(matches.value_of("name").unwrap_or_default(), &settings.notes_dir);
+}
+
+fn exec_get_name_command(matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+    
+    let note_id = matches.value_of("id").unwrap_or_default();
+    Notes::print_note_name_of(note_id);
+}
+
+fn exec_get_file_name_command(matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+    
+    let note_id = matches.value_of("id").unwrap_or_default();
+    Notes::print_file_name_of(note_id);
 }

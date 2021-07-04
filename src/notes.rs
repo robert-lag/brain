@@ -232,6 +232,7 @@ impl Notes {
             }
         };
         let note_content = note_content
+            .replace("<note-id>", &note_id)
             .replace("<note-name>", &note_name)
             .replace("<creation-date>", &creation_timestamp);
 
@@ -619,6 +620,22 @@ impl Notes {
             if let Some(note) = Database::get_note_where_id(&note_id) {
                 println!("{} {}", note_id.yellow(), note.note_name);
             }
+        }
+    }
+
+    pub fn print_note_name_of(note_id: &str) {
+        if let Some(note) = Database::get_note_where_id(note_id) {
+            println!("{}", note.note_name);
+        } else {
+            Message::error(&format!("the note id {} doesn't exist", note_id.yellow()));
+        }
+    }
+
+    pub fn print_file_name_of(note_id: &str) {
+        if let Some(note) = Database::get_note_where_id(note_id) {
+            println!("{}", note.file_name);
+        } else {
+            Message::error(&format!("the note id {} doesn't exist", note_id.yellow()));
         }
     }
 }
