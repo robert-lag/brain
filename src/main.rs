@@ -105,7 +105,14 @@ fn main() {
         .subcommand(SubCommand::with_name("get-name")
             .about("Returns the name of the note with the specified id from the zettelkasten")
             .arg(Arg::with_name("id")
-                .help("The ID of the note to remove")
+                .help("The ID of the note")
+                .required(true)
+            )
+        )
+        .subcommand(SubCommand::with_name("get-file-name")
+            .about("Returns the name of the note file with the specified id from the zettelkasten")
+            .arg(Arg::with_name("id")
+                .help("The ID of the note")
                 .required(true)
             )
         )
@@ -135,6 +142,7 @@ fn main() {
         ("add", Some(add_matches)) => exec_add_command(&add_matches, &mut settings),
         ("rm", Some(remove_matches)) => exec_rm_command(&remove_matches, &mut settings),
         ("get-name", Some(get_name_matches)) => exec_get_name_command(&get_name_matches, &mut settings),
+        ("get-file-name", Some(get_file_name_matches)) => exec_get_file_name_command(&get_file_name_matches, &mut settings),
         _ => (),
     }
 }
@@ -257,4 +265,13 @@ fn exec_get_name_command(matches: &ArgMatches, settings: &mut Settings) {
     
     let note_id = matches.value_of("id").unwrap_or_default();
     Notes::print_note_name_of(note_id);
+}
+
+fn exec_get_file_name_command(matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+    
+    let note_id = matches.value_of("id").unwrap_or_default();
+    Notes::print_file_name_of(note_id);
 }
