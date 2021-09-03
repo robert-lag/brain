@@ -8,14 +8,16 @@ mod note_type;
 mod note;
 mod notes;
 mod settings;
+mod brn_tui;
 
-use settings::Settings;
+use database::Database;
 use directory::Directory;
+use message::Message;
 use note_property::NoteProperty;
 use note_type::NoteType;
 use notes::Notes;
-use database::Database;
-use message::Message;
+use settings::Settings;
+use brn_tui::BrnTui;
 
 use clap::{ Arg, App, SubCommand, AppSettings, ArgMatches, crate_name, crate_version };
 use std::env;
@@ -42,6 +44,9 @@ fn main() {
         )
         .subcommand(SubCommand::with_name("init")
             .about("Initializes a new zettelkasten directory")
+        )
+        .subcommand(SubCommand::with_name("tui")
+            .about("Show TUI interface.")
         )
         .subcommand(SubCommand::with_name("list")
             .about("Lists the last created notes")
@@ -134,6 +139,7 @@ fn main() {
 
     match matches.subcommand() {
         ("init", Some(init_matches)) => exec_init_command(&init_matches, &mut settings),
+        ("tui", Some(tui_matches)) => exec_tui_command(&tui_matches, &mut settings),
         ("list", Some(list_matches)) => exec_list_command(&list_matches, &mut settings),
         ("open", Some(open_matches)) => exec_open_command(&open_matches, &mut settings),
         ("search", Some(search_matches)) => exec_search_command(&search_matches, &mut settings),
@@ -182,6 +188,13 @@ fn initialize_zettelkasten(directory: &OsStr) {
     };
 
     Database::init();
+}
+
+fn exec_tui_command(_matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, true) {
+        return;
+    }
+    BrnTui::init();
 }
 
 fn exec_list_command(matches: &ArgMatches, settings: &mut Settings) {

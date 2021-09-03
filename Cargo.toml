@@ -17,3 +17,4 @@ rusqlite = "~0.25"
 dirs = "~3.0"
 lazy_static = "~1.4"
 indoc = "~1.0"
+tui = { version = "~0.16.0", default-features = false, features = ['crossterm', 'serde'] }
