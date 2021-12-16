@@ -7,7 +7,6 @@ use crossterm::{
     terminal::{ disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen },
 };
 use std::io;
-use std::time::{ Duration, Instant };
 use tui::{
     backend::{ Backend, CrosstermBackend },
     layout::{ Alignment, Constraint, Direction, Layout },
@@ -24,25 +23,27 @@ pub struct BrnTui;
 impl BrnTui {
     pub fn init() {
         enable_raw_mode().unwrap();
-        let stdout = io::stdout();
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture);
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend).unwrap();
 
-        terminal.hide_cursor().unwrap();
-        terminal.clear().unwrap();
+        let result = BrnTui::run_app(&mut terminal);
 
-        BrnTui::run_app(&mut terminal);
-        disable_raw_mode();
+        disable_raw_mode().unwrap();
         execute!(
             terminal.backend_mut(),
             LeaveAlternateScreen,
             DisableMouseCapture
         );
-        terminal.show_cursor();
+        terminal.show_cursor().unwrap();
 
+        if let Err(error) = result {
+            println!("{:?}", error);
+        }
     }
 
-    fn run_app<B: Backend>(terminal: &mut Terminal<B>) {
+    fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> io::Result<()> {
         let mut item_list_state = ListState::default();
         item_list_state.select(Some(0));
 
@@ -53,25 +54,9 @@ impl BrnTui {
             // Detect keydown events
             if let Ok(Event::Key(key)) = event::read() {
                 match key.code {
-                    KeyCode::Char('q') => return,
-                    KeyCode::Char('j') => {
-                        if let Some(selected) = item_list_state.selected() {
-                            if selected < 2 {
-                                item_list_state.select(Some(selected + 1));
-                            } else {
-                                item_list_state.select(Some(2))
-                            }
-                        }
-                    },
-                    KeyCode::Char('k') => {
-                        if let Some(selected) = item_list_state.selected() {
-                            if selected > 0 {
-                                item_list_state.select(Some(selected - 1));
-                            } else {
-                                item_list_state.select(Some(0))
-                            }
-                        }
-                    },
+                    KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char('j') => BrnTui::increment_selected_value_of(&mut item_list_state, 2),
+                    KeyCode::Char('k') => BrnTui::decrement_selected_value_of(&mut item_list_state, 0),
                     _ => (),
                 }
             }
@@ -116,5 +101,25 @@ impl BrnTui {
                     .borders(Borders::ALL)
             );
         f.render_widget(para, chunks[1]);
+    }
+
+    fn increment_selected_value_of(list: &mut ListState, max_value: usize) {
+        if let Some(selected) = list.selected() {
+            if selected < max_value {
+                list.select(Some(selected + 1));
+            } else {
+                list.select(Some(max_value))
+            }
+        }
+    }
+
+    fn decrement_selected_value_of(list: &mut ListState, min_value: usize) {
+        if let Some(selected) = list.selected() {
+            if selected > min_value {
+                list.select(Some(selected - 1));
+            } else {
+                list.select(Some(min_value))
+            }
+        }
     }
 }
