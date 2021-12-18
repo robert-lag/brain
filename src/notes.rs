@@ -16,7 +16,7 @@ use std::collections::hash_map::RandomState;
 use std::collections::hash_set::Difference;
 use std::collections::HashSet;
 use std::env;
-use std::ffi::OsStr;
+use std::ffi::{ OsStr, OsString };
 use std::fs::{ self, File, OpenOptions };
 use std::io::{ self, Error, ErrorKind, Read, Write };
 use std::path::{ Path, PathBuf };
@@ -91,6 +91,18 @@ impl Notes {
             let note = Database::get_note_where_id(&note_id).unwrap();
             println!("{} {}", note_id.yellow(), note.note_name);
         }
+    }
+
+    pub fn get(count: i32) -> Vec<String> {
+        let note_ids = Database::get_all_recent_note_ids(count);
+        let mut note_list = Vec::new();
+
+        for note_id in note_ids {
+            let note = Database::get_note_where_id(&note_id).unwrap();
+            note_list.push(note.note_name);
+        }
+
+        return note_list;
     }
 
     pub fn search(complete_search_string: &str) {
@@ -290,6 +302,24 @@ impl Notes {
             }
         };
     }
+
+    pub fn get_content_of_note(note_id: &str, settings: &mut Settings) -> Option<String> {
+        let absolute_file_path = match Notes::get_absolute_path_of_note(note_id, settings) {
+            Some(value) => value,
+            None => return None,
+        };
+
+        let note_content = match Notes::get_content_from_file(&absolute_file_path) {
+            Ok(value) => value,
+            Err(error) => {
+                Message::error(&format!("add_backlink: couldn't read note file '{}': {}",
+                    &absolute_file_path.to_string_lossy(),
+                    error));
+                return None;
+            }
+        };
+        return Some(note_content);
+    }
     
     pub fn open_random_note(settings: &mut Settings) {
         let note_id = match Database::get_random_note_id() {
@@ -320,10 +350,6 @@ impl Notes {
                 return;
             }
         };
-
-        let notes_dir = &settings.notes_dir;
-        let relative_file_path = Path::new(notes_dir).join(&note.file_name);
-
         let editor = match env::var("EDITOR") {
             Ok(value) => value,
             Err(error) => {
@@ -331,15 +357,9 @@ impl Notes {
                 return;
             }
         };
-
-        let absolute_file_path = match relative_file_path.canonicalize() {
-            Ok(path) => path,
-            Err(error) => {
-                Message::error(&format!("open_note: couldn't get the absolute path of {}: '{}'",
-                    &note.file_name,
-                    error));
-                return;
-            }
+        let absolute_file_path = match Notes::get_absolute_path_of_note(note_id, settings) {
+            Some(value) => value,
+            None => return,
         };
 
         // Open the note in the editor specified by the EDITOR environment variable
@@ -359,6 +379,30 @@ impl Notes {
             Notes::create_backlinks_by_searching(&note, settings);
         }
         Notes::check_yaml_header_of(&note, settings);
+    }
+
+    fn get_absolute_path_of_note(note_id: &str, settings: &mut Settings) -> Option<OsString> {
+        let note = match Database::get_note_where_id(note_id) {
+            Some(value) => value,
+            None => {
+                Message::error(&format!("get_absolute_file_path_of_note: the note id '{}' does not exist!", note_id));
+                return None;
+            }
+        };
+
+        let notes_dir = &settings.notes_dir;
+        let relative_file_path = Path::new(notes_dir).join(&note.file_name);
+        let absolute_file_path = match relative_file_path.canonicalize() {
+            Ok(path) => path,
+            Err(error) => {
+                Message::error(&format!("get_absolute_file_path_of_note: couldn't get the absolute path of {}: '{}'",
+                    &note.file_name,
+                    error));
+                return None;
+            }
+        };
+
+        return Some(absolute_file_path.as_os_str().to_os_string());
     }
 
     fn create_backlinks_by_searching(note: &Note, settings: &Settings) {

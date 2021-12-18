@@ -9,6 +9,7 @@ mod note;
 mod notes;
 mod settings;
 mod brn_tui;
+mod tui_data;
 
 use database::Database;
 use directory::Directory;
@@ -194,7 +195,7 @@ fn exec_tui_command(_matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, true) {
         return;
     }
-    BrnTui::init();
+    BrnTui::init(settings);
 }
 
 fn exec_list_command(matches: &ArgMatches, settings: &mut Settings) {
