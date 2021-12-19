@@ -47,6 +47,7 @@ impl BrnTui {
     }
 
     fn run_app<B: Backend>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) -> io::Result<()> {
+        BrnTui::show_note_content_preview(tui_data, settings);
         loop {
             terminal.draw(|f| BrnTui::render_ui(f, tui_data)).unwrap();
 
@@ -54,8 +55,10 @@ impl BrnTui {
             if let Ok(Event::Key(key)) = event::read() {
                 match key.code {
                     KeyCode::Char('q') => return Ok(()),
-                    KeyCode::Char('j') => BrnTui::increment_selected_value(tui_data.note_list_data.len() - 1, tui_data, settings),
-                    KeyCode::Char('k') => BrnTui::decrement_selected_value(0, tui_data, settings),
+                    KeyCode::Char('j') | KeyCode::Down
+                        => BrnTui::increment_selected_value(tui_data, settings),
+                    KeyCode::Char('k') | KeyCode::Up
+                        => BrnTui::decrement_selected_value(tui_data, settings),
                     _ => (),
                 }
             }
@@ -83,8 +86,7 @@ impl BrnTui {
         let normal_style = Style::default().fg(Color::White);
 
         // Get notes to show
-        tui_data.note_list_data = Notes::get(100);
-        let items: Vec<ListItem> = tui_data.note_list_data
+        let items: Vec<ListItem> = tui_data.note_list.get_items()
             .iter()
             .enumerate()
             .map(|(_, m)| {
@@ -102,7 +104,7 @@ impl BrnTui {
                     .title("List")
                     .borders(Borders::ALL)
             );
-        f.render_stateful_widget(list, area, &mut tui_data.note_list);
+        f.render_stateful_widget(list, area, tui_data.note_list.get_state());
     }
 
     fn render_note_preview<B: Backend>(f: &mut Frame<B>, area: Rect, tui_data: &mut TuiData) {
@@ -117,33 +119,22 @@ impl BrnTui {
         f.render_widget(inner_note_paragraph, area.inner(&Margin {vertical: 2, horizontal: 2}));
     }
 
-    fn increment_selected_value(max_value: usize, tui_data: &mut TuiData, settings: &mut Settings) {
-        if let Some(selected) = tui_data.note_list.selected() {
-            if selected < max_value {
-                tui_data.note_list.select(Some(selected + 1));
-            } else {
-                tui_data.note_list.select(Some(max_value))
-            }
-            BrnTui::show_note_content_preview(tui_data, settings);
-        }
+    fn increment_selected_value(tui_data: &mut TuiData, settings: &mut Settings) {
+        tui_data.note_list.next();
+        BrnTui::show_note_content_preview(tui_data, settings);
     }
 
-    fn decrement_selected_value(min_value: usize, tui_data: &mut TuiData, settings: &mut Settings) {
-        if let Some(selected) = tui_data.note_list.selected() {
-            if selected > min_value {
-                tui_data.note_list.select(Some(selected - 1));
-            } else {
-                tui_data.note_list.select(Some(min_value))
-            }
-            BrnTui::show_note_content_preview(tui_data, settings);
-        }
+    fn decrement_selected_value(tui_data: &mut TuiData, settings: &mut Settings) {
+        tui_data.note_list.previous();
+        BrnTui::show_note_content_preview(tui_data, settings);
     }
 
     fn show_note_content_preview(tui_data: &mut TuiData, settings: &mut Settings) {
-        let note_name = &tui_data.note_list_data[tui_data.note_list.selected().unwrap()];
-        if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, note_name) {
-            if let Some(note_content) = Notes::get_content_of_note(&note_id, settings) {
-                tui_data.note_content_preview = note_content;
+        if let Some(selected_note_name) = &tui_data.note_list.selected_item() {
+            if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
+                if let Some(note_content) = Notes::get_content_of_note(&note_id, settings) {
+                    tui_data.note_content_preview = note_content;
+                }
             }
         }
     }

@@ -10,6 +10,7 @@ mod notes;
 mod settings;
 mod brn_tui;
 mod tui_data;
+mod stateful_list;
 
 use database::Database;
 use directory::Directory;

@@ -1,16 +1,15 @@
-use tui::widgets::ListState;
+use crate::notes::Notes;
+use crate::stateful_list::StatefulList;
 
 pub struct TuiData {
-    pub note_list: ListState,
-    pub note_list_data: Vec<String>,
+    pub note_list: StatefulList<String>,
     pub note_content_preview: String,
 }
 
 impl Default for TuiData {
     fn default() -> TuiData {
         let mut tui_data = TuiData {
-            note_list: ListState::default(),
-            note_list_data: Vec::new(),
+            note_list: StatefulList::with_items(Notes::get(100)),
             note_content_preview: String::default(),
         };
         tui_data.note_list.select(Some(0));
