@@ -266,13 +266,17 @@ impl Database {
     pub fn update_note_name_where(new_note_name: &str, note_property: NoteProperty, value: &str) {
         let conn = Database::get_connection();
 
-        match conn.execute(
+        let query = format!(
             "UPDATE note
-             SET note_name = ':new_note_name'
-             WHERE :note_property = :value;",
+             SET note_name = :new_note_name
+             WHERE {} = :value",
+             note_property.to_db_string()
+        );
+
+        match conn.execute(
+            &query,
             named_params!{
                 ":new_note_name": new_note_name,
-                ":note_property": note_property.to_db_string(),
                 ":value": value
             }
         ) {
