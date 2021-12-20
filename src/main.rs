@@ -210,14 +210,21 @@ fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
     }
     let note_name = matches.value_of("name").unwrap_or_default();
 
+    let result;
     match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
-        Some(note_id) => Notes::open(&note_id, settings),
+        Some(note_id) => {
+            result = Notes::open(&note_id, settings, true);
+        }
         None => {
             // Maybe the note id was given instead of the name
             let note_id = note_name;
-            Notes::open(&note_id, settings);
+            result = Notes::open(&note_id, settings, true);
         }
     };
+
+    if let Err(error) = result {
+        Message::error(&error);
+    }
 }
 
 fn exec_search_command(matches: &ArgMatches, settings: &mut Settings) {

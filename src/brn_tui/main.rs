@@ -69,19 +69,30 @@ impl BrnTui {
     }
 
     fn render_ui<B: Backend>(f: &mut Frame<B>, tui_data: &mut TuiData) {
-        let chunks = Layout::default()
+        let vertical_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(
+                [
+                    Constraint::Min(0),
+                    Constraint::Length(1),
+                ].as_ref()
+            )
+            .split(f.size().inner(&Margin {vertical: 1, horizontal: 1}));
+
+        let horizontal_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .margin(1)
+            .margin(0)
             .constraints(
                 [
                     Constraint::Percentage(20),
-                    Constraint::Min(0)
+                    Constraint::Min(0),
                 ].as_ref()
             )
-            .split(f.size());
+            .split(vertical_chunks[0]);
         
-        BrnTui::render_note_list(f, chunks[0], tui_data);
-        BrnTui::render_note_preview(f, chunks[1], tui_data);
+        BrnTui::render_note_list(f, horizontal_chunks[0], tui_data);
+        BrnTui::render_note_preview(f, horizontal_chunks[1], tui_data);
+        BrnTui::render_message_block(f, vertical_chunks[1].inner(&Margin {vertical: 0, horizontal: 1}), tui_data);
     }
 
     fn render_note_list<B: Backend>(f: &mut Frame<B>, area: Rect, tui_data: &mut TuiData) {
@@ -122,6 +133,12 @@ impl BrnTui {
         f.render_widget(inner_note_paragraph, area.inner(&Margin {vertical: 2, horizontal: 2}));
     }
 
+    fn render_message_block<B: Backend>(f: &mut Frame<B>, area: Rect, tui_data: &mut TuiData) {
+        let message_paragraph = Paragraph::new(tui_data.message.as_str())
+            .alignment(Alignment::Left);
+        f.render_widget(message_paragraph, area);
+    }
+
     fn increment_selected_value(tui_data: &mut TuiData, settings: &mut Settings) {
         tui_data.note_list.next();
         BrnTui::show_note_content_preview(tui_data, settings);
@@ -135,8 +152,13 @@ impl BrnTui {
     fn show_note_content_preview(tui_data: &mut TuiData, settings: &mut Settings) {
         if let Some(selected_note_name) = &tui_data.note_list.selected_item() {
             if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
-                if let Some(note_content) = Notes::get_content_of_note(&note_id, settings) {
-                    tui_data.note_content_preview = note_content;
+                match Notes::get_content_of_note(&note_id, settings) {
+                    Ok(note_content) => {
+                        tui_data.note_content_preview = note_content;
+                    }
+                    Err(error) => {
+                        tui_data.message = error;
+                    }
                 }
             }
         }
@@ -151,7 +173,9 @@ impl BrnTui {
                     DisableMouseCapture
                 ).unwrap();
 
-                Notes::open(&note_id, settings);
+                if let Err(message) = Notes::open(&note_id, settings, false) {
+                    tui_data.message = message;
+                }
 
                 // Force full redraw in the terminal
                 terminal.clear().unwrap();

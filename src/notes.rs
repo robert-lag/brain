@@ -217,7 +217,9 @@ impl Notes {
             Message::info(&format!("created note: {} {}", note.note_id.yellow(), note.note_name));
 
             Database::insert_note(&note.note_id, &note.note_name, &note.file_name, note.creation_date_time);
-            Notes::open(&note.note_id, settings);
+            if let Err(error) = Notes::open(&note.note_id, settings, true) {
+                Message::error(&error);
+            }
         }
     }
 
@@ -303,22 +305,19 @@ impl Notes {
         };
     }
 
-    pub fn get_content_of_note(note_id: &str, settings: &mut Settings) -> Option<String> {
+    pub fn get_content_of_note(note_id: &str, settings: &mut Settings) -> Result<String, String> {
         let absolute_file_path = match Notes::get_absolute_path_of_note(note_id, settings) {
-            Some(value) => value,
-            None => return None,
+            Ok(value) => value,
+            Err(error) => return Err(error),
         };
 
         let note_content = match Notes::get_content_from_file(&absolute_file_path) {
             Ok(value) => value,
             Err(error) => {
-                Message::error(&format!("add_backlink: couldn't read note file '{}': {}",
-                    &absolute_file_path.to_string_lossy(),
-                    error));
-                return None;
+                return Err(error.to_string());
             }
         };
-        return Some(note_content);
+        return Ok(note_content);
     }
     
     pub fn open_random_note(settings: &mut Settings) {
@@ -339,38 +338,41 @@ impl Notes {
         };
         Message::info(&format!("opened note:  {} {} ", note_id.yellow(), note.note_name));
 
-        Notes::open(&note_id, settings);
+        if let Err(error) = Notes::open(&note_id, settings, true) {
+            Message::error(&error);
+        }
     }
 
-    pub fn open(note_id: &str, settings: &mut Settings) {
+    pub fn open(note_id: &str, settings: &mut Settings, interactive_mode: bool) -> Result<(), String> {
         let note = match Database::get_note_where_id(note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("open_note: the note id '{}' does not exist!", note_id));
-                return;
+                return Err(format!("the note id '{}' does not exist!", note_id));
             }
         };
         let editor = match env::var("EDITOR") {
             Ok(value) => value,
             Err(error) => {
-                Message::error(&format!("open_note: couldn't read the EDITOR environment variable: '{}'", error));
-                return;
+                return Err(format!("couldn't read the EDITOR environment variable: '{}'", error));
             }
         };
         let absolute_file_path = match Notes::get_absolute_path_of_note(note_id, settings) {
-            Some(value) => value,
-            None => return,
+            Ok(value) => value,
+            Err(error) => {
+                return Err(format!("couldn't get the absolute path of {}: '{}'",
+                    &note.file_name,
+                    error));
+            }
         };
 
         // Open the note in the editor specified by the EDITOR environment variable
         match Command::new(&editor).arg(&absolute_file_path).status() {
             Ok(_) => {  },
             Err(error) => {
-                Message::error(&format!("open_note: couldn't open the note '{}' with '{}': '{}'",
+                return Err(format!("couldn't open the note '{}' with '{}': '{}'",
                     &editor,
                     &note.file_name,
                     error));
-                return;
             }
         };
 
@@ -378,15 +380,17 @@ impl Notes {
         if settings.backlinking_enabled {
             Notes::create_backlinks_by_searching(&note, settings);
         }
-        Notes::check_yaml_header_of(&note, settings);
+        if let Err(error) = Notes::check_yaml_header_of(&note, settings, interactive_mode) {
+            return Err("check_yaml_header_of: ".to_string() + &error);
+        }
+        return Ok(());
     }
 
-    fn get_absolute_path_of_note(note_id: &str, settings: &mut Settings) -> Option<OsString> {
+    fn get_absolute_path_of_note(note_id: &str, settings: &mut Settings) -> Result<OsString, String> {
         let note = match Database::get_note_where_id(note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("get_absolute_file_path_of_note: the note id '{}' does not exist!", note_id));
-                return None;
+                return Err(format!("the note id '{}' does not exist!", note_id));
             }
         };
 
@@ -395,14 +399,11 @@ impl Notes {
         let absolute_file_path = match relative_file_path.canonicalize() {
             Ok(path) => path,
             Err(error) => {
-                Message::error(&format!("get_absolute_file_path_of_note: couldn't get the absolute path of {}: '{}'",
-                    &note.file_name,
-                    error));
-                return None;
+                return Err(error.to_string());
             }
         };
 
-        return Some(absolute_file_path.as_os_str().to_os_string());
+        return Ok(absolute_file_path.as_os_str().to_os_string());
     }
 
     fn create_backlinks_by_searching(note: &Note, settings: &Settings) {
@@ -496,46 +497,54 @@ impl Notes {
         }
     }
 
-    fn check_yaml_header_of(note: &Note, settings: &mut Settings) {
+    fn check_yaml_header_of(note: &Note, settings: &mut Settings, interactive_mode: bool) -> Result<(), String> {
         let notes_dir = &settings.notes_dir;
         let absolute_note_file_path = PathBuf::from(notes_dir).join(&note.file_name);
         let yaml_header = match Notes::get_yaml_header_of(absolute_note_file_path) {
             Ok(header) => header,
             Err(error) => {
-                Message::error(&format!("check_yaml_header: couldn't read header of note file: {}", error));
-                Notes::show_open_file_dialog_for(&note.note_id, settings);
-                return;
+                if interactive_mode {
+                    Notes::show_open_file_dialog_for(&note.note_id, settings);
+                }
+                return Err(format!("couldn't read header of note file: {}", error));
             }
         };
         let yaml_files = match YamlLoader::load_from_str(&yaml_header) {
             Ok(yaml_vector) => yaml_vector,
             Err(error) => {
-                Message::error(&format!("check_yaml_header: couldn't parse yaml header: '{}'", error));
-                Notes::show_open_file_dialog_for(&note.note_id, settings);
-                return;
+                if interactive_mode {
+                    Notes::show_open_file_dialog_for(&note.note_id, settings);
+                }
+                return Err(format!("couldn't parse yaml header: '{}'", error));
             }
         };
         let note_metadata = &yaml_files[0];
 
         let mut is_check_complete;
-        is_check_complete = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name, settings);
-        if !is_check_complete { return; }
+        is_check_complete = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name, settings, interactive_mode);
+        if !is_check_complete { return Ok(()); }
 
-        is_check_complete = check_metadata_tags_of(&note.note_id, note_metadata, settings);
-        if !is_check_complete { return; }
+        is_check_complete = check_metadata_tags_of(&note.note_id, note_metadata, settings, interactive_mode);
+        if !is_check_complete { return Ok(()); }
 
-        fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str, settings: &mut Settings) -> bool {
+        return Ok(());
+
+        fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str, settings: &mut Settings, interactive_mode: bool) -> bool {
             match note_metadata["name"].as_str() {
                 Some(new_note_name) => {
                     if WHITESPACE_VALIDATOR.is_match(new_note_name) {
-                        show_missing_note_name_warning_for(note_id, settings);
+                        if interactive_mode {
+                            show_missing_note_name_warning_for(note_id, settings);
+                        }
                         return false;
                     } else if new_note_name != original_note_name {
                         Database::update_note_name_where(new_note_name, NoteProperty::NoteId, note_id);
                     }
                 }
                 None => {
-                    show_missing_note_name_warning_for(note_id, settings);
+                    if interactive_mode {
+                        show_missing_note_name_warning_for(note_id, settings);
+                    }
                     return false;
                 }
             }
@@ -555,11 +564,13 @@ impl Notes {
             }
         }
 
-        fn check_metadata_tags_of(note_id: &str, note_metadata: &Yaml, settings: &mut Settings) -> bool {
+        fn check_metadata_tags_of(note_id: &str, note_metadata: &Yaml, settings: &mut Settings, interactive_mode: bool) -> bool {
             match note_metadata["tags"].as_vec() {
                 Some(tags) => {
                     if tags.len() == 0 {
-                        show_missing_tags_warning_for(note_id, settings);
+                        if interactive_mode {
+                            show_missing_tags_warning_for(note_id, settings);
+                        }
                         return false;
                     }
 
@@ -569,7 +580,9 @@ impl Notes {
                     }
                 }
                 None => {
-                    show_missing_tags_warning_for(note_id, settings);
+                    if interactive_mode {
+                        show_missing_tags_warning_for(note_id, settings);
+                    }
                     return false;
                 }
             }
@@ -655,7 +668,9 @@ impl Notes {
         }
 
         if !(open_file_again.trim().to_lowercase() == "n") {
-            Notes::open(note_id, settings);
+            if let Err(error) = Notes::open(note_id, settings, true) {
+                Message::error(&error);
+            }
         }
     }
 
