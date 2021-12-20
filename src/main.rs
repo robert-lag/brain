@@ -9,8 +9,6 @@ mod note;
 mod notes;
 mod settings;
 mod brn_tui;
-mod tui_data;
-mod stateful_list;
 
 use database::Database;
 use directory::Directory;
@@ -19,7 +17,7 @@ use note_property::NoteProperty;
 use note_type::NoteType;
 use notes::Notes;
 use settings::Settings;
-use brn_tui::BrnTui;
+use brn_tui::main::BrnTui;
 
 use clap::{ Arg, App, SubCommand, AppSettings, ArgMatches, crate_name, crate_version };
 use std::env;

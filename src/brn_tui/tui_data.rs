@@ -1,5 +1,5 @@
 use crate::notes::Notes;
-use crate::stateful_list::StatefulList;
+use crate::brn_tui::stateful_list::StatefulList;
 
 pub struct TuiData {
     pub note_list: StatefulList<String>,

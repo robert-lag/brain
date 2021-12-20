@@ -2,7 +2,7 @@ use crate::database::Database;
 use crate::note_property::NoteProperty;
 use crate::notes::Notes;
 use crate::settings::Settings;
-use crate::tui_data::TuiData;
+use crate::brn_tui::tui_data::TuiData;
 
 use crossterm::{
     event::{ self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode },
