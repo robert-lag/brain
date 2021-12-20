@@ -9,6 +9,7 @@ pub struct Settings {
     pub notes_dir: OsString,
     pub zettelkasten_dir: OsString,
     pub backlinking_enabled: bool,
+    pub print_to_stdout: bool,
     note_history: VecDeque<String>,
 }
 
@@ -19,6 +20,7 @@ impl Settings {
             zettelkasten_dir: OsString::new(),
             note_history: VecDeque::new(),
             backlinking_enabled: true,
+            print_to_stdout: true,
         };
         settings.load_note_history();
         return settings;

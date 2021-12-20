@@ -194,6 +194,7 @@ fn exec_tui_command(_matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, true) {
         return;
     }
+    settings.print_to_stdout = false;
     BrnTui::init(settings);
 }
 
@@ -213,12 +214,12 @@ fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
     let result;
     match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
         Some(note_id) => {
-            result = Notes::open(&note_id, settings, true);
+            result = Notes::open(&note_id, settings);
         }
         None => {
             // Maybe the note id was given instead of the name
             let note_id = note_name;
-            result = Notes::open(&note_id, settings, true);
+            result = Notes::open(&note_id, settings);
         }
     };
 

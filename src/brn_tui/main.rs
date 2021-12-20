@@ -135,7 +135,8 @@ impl BrnTui {
 
     fn render_message_block<B: Backend>(f: &mut Frame<B>, area: Rect, tui_data: &mut TuiData) {
         let message_paragraph = Paragraph::new(tui_data.message.as_str())
-            .alignment(Alignment::Left);
+            .alignment(Alignment::Left)
+            .style(Style::default().fg(Color::LightRed));
         f.render_widget(message_paragraph, area);
     }
 
@@ -173,8 +174,10 @@ impl BrnTui {
                     DisableMouseCapture
                 ).unwrap();
 
-                if let Err(message) = Notes::open(&note_id, settings, false) {
-                    tui_data.message = message;
+                match Notes::open(&note_id, settings) {
+                    Ok(None) => (),
+                    Ok(Some(message)) => tui_data.message = "INFO: ".to_string() + &message,
+                    Err(message) => tui_data.message = "ERROR: ".to_string() + &message,
                 }
 
                 // Force full redraw in the terminal

@@ -217,7 +217,7 @@ impl Notes {
             Message::info(&format!("created note: {} {}", note.note_id.yellow(), note.note_name));
 
             Database::insert_note(&note.note_id, &note.note_name, &note.file_name, note.creation_date_time);
-            if let Err(error) = Notes::open(&note.note_id, settings, true) {
+            if let Err(error) = Notes::open(&note.note_id, settings) {
                 Message::error(&error);
             }
         }
@@ -338,12 +338,12 @@ impl Notes {
         };
         Message::info(&format!("opened note:  {} {} ", note_id.yellow(), note.note_name));
 
-        if let Err(error) = Notes::open(&note_id, settings, true) {
+        if let Err(error) = Notes::open(&note_id, settings) {
             Message::error(&error);
         }
     }
 
-    pub fn open(note_id: &str, settings: &mut Settings, interactive_mode: bool) -> Result<(), String> {
+    pub fn open(note_id: &str, settings: &mut Settings) -> Result<Option<String>, String> {
         let note = match Database::get_note_where_id(note_id) {
             Some(value) => value,
             None => {
@@ -380,10 +380,12 @@ impl Notes {
         if settings.backlinking_enabled {
             Notes::create_backlinks_by_searching(&note, settings);
         }
-        if let Err(error) = Notes::check_yaml_header_of(&note, settings, interactive_mode) {
-            return Err("check_yaml_header_of: ".to_string() + &error);
+
+        match Notes::check_yaml_header_of(&note, settings) {
+            Ok(None) => return Ok(None),
+            Ok(Some(message)) => return Ok(Some(message)),
+            Err(error) => return Err("check_yaml_header_of: ".to_string() + &error),
         }
-        return Ok(());
     }
 
     fn get_absolute_path_of_note(note_id: &str, settings: &mut Settings) -> Result<OsString, String> {
@@ -497,13 +499,13 @@ impl Notes {
         }
     }
 
-    fn check_yaml_header_of(note: &Note, settings: &mut Settings, interactive_mode: bool) -> Result<(), String> {
+    fn check_yaml_header_of(note: &Note, settings: &mut Settings) -> Result<Option<String>, String> {
         let notes_dir = &settings.notes_dir;
         let absolute_note_file_path = PathBuf::from(notes_dir).join(&note.file_name);
         let yaml_header = match Notes::get_yaml_header_of(absolute_note_file_path) {
             Ok(header) => header,
             Err(error) => {
-                if interactive_mode {
+                if settings.print_to_stdout {
                     Notes::show_open_file_dialog_for(&note.note_id, settings);
                 }
                 return Err(format!("couldn't read header of note file: {}", error));
@@ -512,7 +514,7 @@ impl Notes {
         let yaml_files = match YamlLoader::load_from_str(&yaml_header) {
             Ok(yaml_vector) => yaml_vector,
             Err(error) => {
-                if interactive_mode {
+                if settings.print_to_stdout {
                     Notes::show_open_file_dialog_for(&note.note_id, settings);
                 }
                 return Err(format!("couldn't parse yaml header: '{}'", error));
@@ -520,36 +522,37 @@ impl Notes {
         };
         let note_metadata = &yaml_files[0];
 
-        let mut is_check_complete;
-        is_check_complete = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name, settings, interactive_mode);
-        if !is_check_complete { return Ok(()); }
+        if let Err(error) = check_metadata_name_of(&note.note_id, note_metadata, &note.note_name, settings) {
+            return Ok(Some(error));
+        }
 
-        is_check_complete = check_metadata_tags_of(&note.note_id, note_metadata, settings, interactive_mode);
-        if !is_check_complete { return Ok(()); }
+        if let Err(error) = check_metadata_tags_of(&note.note_id, note_metadata, settings) {
+            return Ok(Some(error));
+        }
 
-        return Ok(());
+        return Ok(None);
 
-        fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str, settings: &mut Settings, interactive_mode: bool) -> bool {
+        fn check_metadata_name_of(note_id: &str, note_metadata: &Yaml, original_note_name: &str, settings: &mut Settings) -> Result<(), String> {
             match note_metadata["name"].as_str() {
                 Some(new_note_name) => {
                     if WHITESPACE_VALIDATOR.is_match(new_note_name) {
-                        if interactive_mode {
+                        if settings.print_to_stdout {
                             show_missing_note_name_warning_for(note_id, settings);
                         }
-                        return false;
+                        return Err(format!("the note '{}' doesn't have a name! please add a value after the 'name' property to the yaml header!", note_id));
                     } else if new_note_name != original_note_name {
                         Database::update_note_name_where(new_note_name, NoteProperty::NoteId, note_id);
                     }
                 }
                 None => {
-                    if interactive_mode {
+                    if settings.print_to_stdout {
                         show_missing_note_name_warning_for(note_id, settings);
                     }
-                    return false;
+                    return Err(format!("the note '{}' doesn't have a name! please add a value after the 'name' property to the yaml header!", note_id));
                 }
             }
 
-            return true;
+            return Ok(());
 
             fn show_missing_note_name_warning_for(note_id: &str, settings: &mut Settings) {
                 Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
@@ -564,14 +567,14 @@ impl Notes {
             }
         }
 
-        fn check_metadata_tags_of(note_id: &str, note_metadata: &Yaml, settings: &mut Settings, interactive_mode: bool) -> bool {
+        fn check_metadata_tags_of(note_id: &str, note_metadata: &Yaml, settings: &mut Settings) -> Result<(), String> {
             match note_metadata["tags"].as_vec() {
                 Some(tags) => {
                     if tags.len() == 0 {
-                        if interactive_mode {
+                        if settings.print_to_stdout {
                             show_missing_tags_warning_for(note_id, settings);
                         }
-                        return false;
+                        return Err(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id));
                     }
 
                     for tag in tags.iter() {
@@ -580,14 +583,14 @@ impl Notes {
                     }
                 }
                 None => {
-                    if interactive_mode {
+                    if settings.print_to_stdout {
                         show_missing_tags_warning_for(note_id, settings);
                     }
-                    return false;
+                    return Err(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id));
                 }
             }
 
-            return true;
+            return Ok(());
 
             fn show_missing_tags_warning_for(note_id: &str, settings: &mut Settings) {
                 Message::warning(indoc! {"
@@ -668,7 +671,7 @@ impl Notes {
         }
 
         if !(open_file_again.trim().to_lowercase() == "n") {
-            if let Err(error) = Notes::open(note_id, settings, true) {
+            if let Err(error) = Notes::open(note_id, settings) {
                 Message::error(&error);
             }
         }
