@@ -10,6 +10,7 @@ use crossterm::{
     terminal::{ disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen },
 };
 use std::io;
+use std::io::Write;
 use tui::{
     backend::{ Backend, CrosstermBackend },
     layout::{ Alignment, Constraint, Direction, Layout, Margin, Rect },
@@ -46,7 +47,7 @@ impl BrnTui {
         }
     }
 
-    fn run_app<B: Backend>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) -> io::Result<()> {
+    fn run_app<B: Backend + Write>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) -> io::Result<()> {
         BrnTui::show_note_content_preview(tui_data, settings);
         loop {
             terminal.draw(|f| BrnTui::render_ui(f, tui_data)).unwrap();
@@ -59,6 +60,8 @@ impl BrnTui {
                         => BrnTui::increment_selected_value(tui_data, settings),
                     KeyCode::Char('k') | KeyCode::Up
                         => BrnTui::decrement_selected_value(tui_data, settings),
+                    KeyCode::Char('l') | KeyCode::Enter
+                        => BrnTui::open_selected_note(terminal, tui_data, settings),
                     _ => (),
                 }
             }
@@ -135,6 +138,29 @@ impl BrnTui {
                 if let Some(note_content) = Notes::get_content_of_note(&note_id, settings) {
                     tui_data.note_content_preview = note_content;
                 }
+            }
+        }
+    }
+
+    fn open_selected_note<B: Backend + Write>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) {
+        if let Some(selected_note_name) = tui_data.note_list.selected_item() {
+            if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
+                execute!(
+                    terminal.backend_mut(),
+                    LeaveAlternateScreen,
+                    DisableMouseCapture
+                ).unwrap();
+
+                Notes::open(&note_id, settings);
+
+                // Force full redraw in the terminal
+                terminal.clear().unwrap();
+
+                execute!(
+                    terminal.backend_mut(),
+                    EnterAlternateScreen,
+                    EnableMouseCapture
+                ).unwrap();
             }
         }
     }
