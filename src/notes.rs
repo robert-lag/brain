@@ -105,7 +105,7 @@ impl Notes {
         return note_list;
     }
 
-    pub fn search(complete_search_string: &str) {
+    pub fn search(complete_search_string: &str) -> Vec<NoteTagging> {
         let split_search_strings = complete_search_string.split(" && ");
         let mut search_results: HashSet<NoteTagging> = HashSet::new();
         let mut negated_search_results: HashSet<NoteTagging> = HashSet::new();
@@ -115,8 +115,8 @@ impl Notes {
         }
 
         let search_results = search_results.difference(&negated_search_results);
-
-        display_search_results_of(search_results);
+        
+        return search_results.cloned().collect();
 
         fn search_notes_and_add_to(mut search_string: &str, search_results: &mut HashSet<NoteTagging>, negated_search_results: &mut HashSet<NoteTagging>) {
             let mut individual_search_results = HashSet::new();
@@ -124,6 +124,10 @@ impl Notes {
             let mut is_negated_search_string = false;
 
             loop {
+                if search_string.is_empty() {
+                    break;
+                }
+
                 if &search_string[0..1] == "!" {
                     is_negated_search_string = true;
                     search_string = &search_string[1..search_string.len()];
@@ -174,38 +178,35 @@ impl Notes {
                 }
             }
         }
+    }
 
-        fn display_search_results_of(search_results: Difference<NoteTagging, RandomState>) {
-            for search_result in search_results {
-                if let Some(note) = Database::get_note_where_id(&search_result.note_id) {
-                    let tag_name = &search_result.tag_name.as_ref();
+    pub fn display_search_results_of(search_results: Vec<NoteTagging>) {
+        for search_result in search_results {
+            if let Some(note) = Database::get_note_where_id(&search_result.note_id) {
+                let tag_name = &search_result.tag_name.as_ref();
 
-                    if tag_name.is_some() {
-                        let tag_name = tag_name.unwrap();
-                        println!("{} {}\t\t{}{}",
-                            note.note_id.yellow(), note.note_name,
-                            "#".bright_yellow(), tag_name.bright_yellow());
-                    }
-                    else {
-                        println!("{} {}", note.note_id.yellow(), note.note_name);
-                    }
+                if tag_name.is_some() {
+                    let tag_name = tag_name.unwrap();
+                    println!("{} {}\t\t{}{}",
+                        note.note_id.yellow(), note.note_name,
+                        "#".bright_yellow(), tag_name.bright_yellow());
                 }
-
+                else {
+                    println!("{} {}", note.note_id.yellow(), note.note_name);
+                }
             }
         }
     }
 
-    pub fn add(note_name: &str, note_type: NoteType, settings: &mut Settings) {
+    pub fn add(note_name: &str, note_type: NoteType, settings: &mut Settings) -> Result<Option<String>, String> {
         let template_path = Path::new(&settings.zettelkasten_dir).join("note-template.md");
         if !template_path.exists() {
-            Message::error(&format!("add_note: the note template couldn't be found at '{}'",
+            return Err(format!("the note template couldn't be found at '{}'",
                 template_path.to_string_lossy()));
-            return;
         }
 
         if !NOTE_NAME_VALIDATOR.is_match(note_name) {
-            Message::error(&format!("add_note: the note name contains illegal characters"));
-            return;
+            return Err(format!("add_note: the note name contains illegal characters"));
         }
 
         if let Some(note) = Notes::create_note_from_template(
@@ -214,13 +215,16 @@ impl Notes {
             &settings.notes_dir,
             template_path.as_os_str()
         ) {
-            Message::info(&format!("created note: {} {}", note.note_id.yellow(), note.note_name));
+            if settings.print_to_stdout {
+                Message::info(&format!("created note: {} {}", note.note_id.yellow(), note.note_name));
+            }
 
             Database::insert_note(&note.note_id, &note.note_name, &note.file_name, note.creation_date_time);
-            if let Err(error) = Notes::open(&note.note_id, settings) {
-                Message::error(&error);
-            }
+            let result_message = Notes::open(&note.note_id, settings);
+            return result_message;
         }
+
+        return Ok(None);
     }
 
     fn create_note_from_template(note_name: &str, note_type: NoteType, notes_dir: &OsStr, template_path: &OsStr) -> Option<Note> {

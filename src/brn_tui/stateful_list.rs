@@ -19,6 +19,11 @@ impl<T> StatefulList<T> {
         }
     }
 
+    pub fn replace_items_with(&mut self, items: Vec<T>) {
+        self.items = items;
+        self.state = ListState::default();
+    }
+
     pub fn select(&mut self, index: Option<usize>) {
         self.state.select(index);
     }
@@ -36,6 +41,10 @@ impl<T> StatefulList<T> {
     }
 
     pub fn next(&mut self) {
+        if self.items.len() == 0 {
+            return;
+        }
+
         let next_index = match self.selected() {
             Some(i) => {
                 if i >= self.items.len() - 1 {
@@ -50,6 +59,10 @@ impl<T> StatefulList<T> {
     }
 
     pub fn previous(&mut self) {
+        if self.items.len() == 0 {
+            return;
+        }
+
         let prev_index = match self.selected() {
             Some(i) => {
                 if i == 0 {

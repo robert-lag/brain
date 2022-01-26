@@ -223,8 +223,10 @@ fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
         }
     };
 
-    if let Err(error) = result {
-        Message::error(&error);
+    match result {
+        Ok(None) => (),
+        Ok(Some(message)) => Message::warning(&message),
+        Err(error) => Message::error(&error),
     }
 }
 
@@ -234,7 +236,8 @@ fn exec_search_command(matches: &ArgMatches, settings: &mut Settings) {
     }
     let search_string = matches.value_of("search-string").unwrap_or_default();
 
-    Notes::search(search_string);
+    let search_results = Notes::search(search_string);
+    Notes::display_search_results_of(search_results)
 }
 
 fn exec_random_command(_matches: &ArgMatches, settings: &mut Settings) {
@@ -269,7 +272,11 @@ fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {
         note_type = NoteType::Topic;
     }
 
-    Notes::add(note_name, note_type, settings);
+    match Notes::add(note_name, note_type, settings) {
+        Ok(None) => (),
+        Ok(Some(message)) => Message::warning(&message),
+        Err(error) => Message::error(&error),
+    }
 }
 
 fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {

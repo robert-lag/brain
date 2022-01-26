@@ -3,6 +3,7 @@ use crate::note_property::NoteProperty;
 use crate::notes::Notes;
 use crate::settings::Settings;
 use crate::brn_tui::tui_data::TuiData;
+use crate::brn_tui::input_mode::InputMode;
 
 use crossterm::{
     event::{ self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode },
@@ -54,15 +55,46 @@ impl BrnTui {
 
             // Detect keydown events
             if let Ok(Event::Key(key)) = event::read() {
-                match key.code {
-                    KeyCode::Char('q') => return Ok(()),
-                    KeyCode::Char('j') | KeyCode::Down
-                        => BrnTui::increment_selected_value(tui_data, settings),
-                    KeyCode::Char('k') | KeyCode::Up
-                        => BrnTui::decrement_selected_value(tui_data, settings),
-                    KeyCode::Char('l') | KeyCode::Enter
-                        => BrnTui::open_selected_note(terminal, tui_data, settings),
-                    _ => (),
+                match tui_data.input_mode {
+                    InputMode::Normal => match key.code {
+                        KeyCode::Char('q') => return Ok(()),
+                        KeyCode::Char('j') | KeyCode::Down
+                            => BrnTui::increment_selected_value(tui_data, settings),
+                        KeyCode::Char('k') | KeyCode::Up
+                            => BrnTui::decrement_selected_value(tui_data, settings),
+                        KeyCode::Char('l') | KeyCode::Enter
+                            => BrnTui::open_selected_note(terminal, tui_data, settings),
+                        KeyCode::Char('a')
+                            => BrnTui::add_note(terminal, tui_data, settings),
+                        KeyCode::Char('/')
+                            => tui_data.input_mode = InputMode::Edit,
+                        _ => (),
+                    },
+                    InputMode::Edit => match key.code {
+                        KeyCode::Esc => tui_data.input_mode = InputMode::Normal,
+                        KeyCode::Enter => {
+                            tui_data.input_mode = InputMode::Normal;
+                            let search_results = Notes::search(&tui_data.search_text.get_content_text())
+                                .iter()
+                                .map(|m| {
+                                    match Database::get_note_where_id(&m.note_id) {
+                                        Some(note) => note.note_name,
+                                        None => String::new(),
+                                    }
+                                })
+                                .collect();
+                            tui_data.note_list.replace_items_with(search_results);
+                            tui_data.note_list.select(Some(0));
+                            BrnTui::show_note_content_preview(tui_data, settings);
+                        }
+                        KeyCode::Char(c) => {
+                            tui_data.search_text.push(c);
+                        },
+                        KeyCode::Backspace => {
+                            tui_data.search_text.pop();
+                        },
+                        _ => (),
+                    }
                 }
             }
         }
@@ -102,8 +134,7 @@ impl BrnTui {
         // Get notes to show
         let items: Vec<ListItem> = tui_data.note_list.get_items()
             .iter()
-            .enumerate()
-            .map(|(_, m)| {
+            .map(|m| {
                 ListItem::new(m.to_string())
             })
             .collect();
@@ -134,9 +165,19 @@ impl BrnTui {
     }
 
     fn render_message_block<B: Backend>(f: &mut Frame<B>, area: Rect, tui_data: &mut TuiData) {
-        let message_paragraph = Paragraph::new(tui_data.message.as_str())
-            .alignment(Alignment::Left)
-            .style(Style::default().fg(Color::LightRed));
+        let message_paragraph;
+        match tui_data.input_mode {
+            InputMode::Normal => {
+                message_paragraph = Paragraph::new(tui_data.message.as_str())
+                    .alignment(Alignment::Left)
+                    .style(Style::default().fg(Color::LightRed));
+            },
+            InputMode::Edit => {
+                message_paragraph = Paragraph::new(tui_data.search_text.get_displayed_text())
+                    .alignment(Alignment::Left)
+                    .style(Style::default().fg(Color::White));
+            },
+        }
         f.render_widget(message_paragraph, area);
     }
 
@@ -190,5 +231,8 @@ impl BrnTui {
                 ).unwrap();
             }
         }
+    }
+
+    fn add_note<B: Backend + Write>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) {
     }
 }
