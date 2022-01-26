@@ -12,8 +12,6 @@ use colored::*;
 use indoc::indoc;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::collections::hash_map::RandomState;
-use std::collections::hash_set::Difference;
 use std::collections::HashSet;
 use std::env;
 use std::ffi::{ OsStr, OsString };

@@ -1,5 +1,4 @@
 use std::hash::{Hash, Hasher};
-use std::iter::FromIterator;
 
 #[derive(Clone)]
 pub struct NoteTagging {

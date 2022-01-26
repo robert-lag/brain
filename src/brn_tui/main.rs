@@ -74,18 +74,7 @@ impl BrnTui {
                         KeyCode::Esc => tui_data.input_mode = InputMode::Normal,
                         KeyCode::Enter => {
                             tui_data.input_mode = InputMode::Normal;
-                            let search_results = Notes::search(&tui_data.search_text.get_content_text())
-                                .iter()
-                                .map(|m| {
-                                    match Database::get_note_where_id(&m.note_id) {
-                                        Some(note) => note.note_name,
-                                        None => String::new(),
-                                    }
-                                })
-                                .collect();
-                            tui_data.note_list.replace_items_with(search_results);
-                            tui_data.note_list.select(Some(0));
-                            BrnTui::show_note_content_preview(tui_data, settings);
+                            BrnTui::execute_search(tui_data, settings);
                         }
                         KeyCode::Char(c) => {
                             tui_data.search_text.push(c);
@@ -231,6 +220,21 @@ impl BrnTui {
                 ).unwrap();
             }
         }
+    }
+
+    fn execute_search(tui_data: &mut TuiData, settings: &mut Settings) {
+        let search_results = Notes::search(&tui_data.search_text.get_content_text())
+            .iter()
+            .map(|m| {
+                match Database::get_note_where_id(&m.note_id) {
+                    Some(note) => note.note_name,
+                    None => String::new(),
+                }
+            })
+            .collect();
+        tui_data.note_list.replace_items_with(search_results);
+        tui_data.note_list.select(Some(0));
+        BrnTui::show_note_content_preview(tui_data, settings);
     }
 
     fn add_note<B: Backend + Write>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) {

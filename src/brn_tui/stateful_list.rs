@@ -33,6 +33,10 @@ impl<T> StatefulList<T> {
     }
 
     pub fn selected_item(&mut self) -> Option<&T> {
+        if self.items.is_empty() {
+            return None;
+        }
+
         if let Some(selected_index) = self.selected() {
             return Some(&self.items[selected_index]);
         } else {
