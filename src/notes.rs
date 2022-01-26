@@ -285,17 +285,8 @@ impl Notes {
         };
 
         let note_file_path = Path::new(notes_dir).join(note.file_name);
-        let note_tags = Database::get_tags_of_note(&note_id);
 
-        for note_tag in note_tags {
-            Database::delete_note_tagging(&note_id, &note_tag);
-
-            let number_of_notes_with_current_tag = Database::get_note_ids_with_tag(&note_tag).len();
-            if number_of_notes_with_current_tag == 0 {
-                Database::delete_tag(&note_tag);
-            }
-        }
-
+        Notes::delete_tags_of_note(&note_id);
         Database::delete_note(&note_id);
 
         match fs::remove_file(&note_file_path){
@@ -305,6 +296,19 @@ impl Notes {
                 return;
             }
         };
+    }
+
+    fn delete_tags_of_note(note_id: &str) {
+        let note_tags = Database::get_tags_of_note(note_id);
+
+        for note_tag in note_tags {
+            Database::delete_note_tagging(note_id, &note_tag);
+
+            let number_of_notes_with_current_tag = Database::get_note_ids_with_tag(&note_tag).len();
+            if number_of_notes_with_current_tag == 0 {
+                Database::delete_tag(&note_tag);
+            }
+        }
     }
 
     pub fn get_content_of_note(note_id: &str, settings: &mut Settings) -> Result<String, String> {
@@ -570,6 +574,8 @@ impl Notes {
         }
 
         fn check_metadata_tags_of(note_id: &str, note_metadata: &Yaml, settings: &mut Settings) -> Result<(), String> {
+            Notes::delete_tags_of_note(note_id);
+
             match note_metadata["tags"].as_vec() {
                 Some(tags) => {
                     if tags.len() == 0 {
