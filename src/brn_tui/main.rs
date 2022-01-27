@@ -1,9 +1,10 @@
-use crate::database::Database;
-use crate::note_property::NoteProperty;
-use crate::notes::Notes;
-use crate::settings::Settings;
 use crate::brn_tui::tui_data::TuiData;
 use crate::brn_tui::input_mode::InputMode;
+use crate::database::Database;
+use crate::note_property::NoteProperty;
+use crate::note_type::NoteType;
+use crate::notes::Notes;
+use crate::settings::Settings;
 
 use crossterm::{
     event::{ self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode },
@@ -64,13 +65,35 @@ impl BrnTui {
                             => BrnTui::decrement_selected_value(tui_data, settings),
                         KeyCode::Char('l') | KeyCode::Enter
                             => BrnTui::open_selected_note(terminal, tui_data, settings),
-                        KeyCode::Char('a')
-                            => BrnTui::add_note(terminal, tui_data, settings),
+                        KeyCode::Char('a') => {
+                            tui_data.edit_text.set_pre_text("Name: ");
+                            tui_data.input_mode = InputMode::Edit;
+                        },
                         KeyCode::Char('/')
-                            => tui_data.input_mode = InputMode::Edit,
+                            => tui_data.input_mode = InputMode::Search,
                         _ => (),
                     },
                     InputMode::Edit => match key.code {
+                        KeyCode::Esc => tui_data.input_mode = InputMode::Normal,
+                        KeyCode::Enter => {
+                            if tui_data.note_name_cache.is_empty() {
+                                tui_data.note_name_cache = tui_data.edit_text.get_content_text();
+                                tui_data.edit_text.set_pre_text("Type (T|q|j): ");
+                            } else {
+                                BrnTui::add_note(terminal, tui_data, settings);
+                                tui_data.input_mode = InputMode::Normal;
+                                tui_data.edit_text.clear();
+                            }
+                        }
+                        KeyCode::Char(c) => {
+                            tui_data.edit_text.push(c);
+                        },
+                        KeyCode::Backspace => {
+                            tui_data.edit_text.pop();
+                        },
+                        _ => (),
+                    },
+                    InputMode::Search => match key.code {
                         KeyCode::Esc => tui_data.input_mode = InputMode::Normal,
                         KeyCode::Enter => {
                             tui_data.input_mode = InputMode::Normal;
@@ -83,7 +106,7 @@ impl BrnTui {
                             tui_data.search_text.pop();
                         },
                         _ => (),
-                    }
+                    },
                 }
             }
         }
@@ -162,9 +185,14 @@ impl BrnTui {
                     .style(Style::default().fg(Color::LightRed));
             },
             InputMode::Edit => {
+                message_paragraph = Paragraph::new(tui_data.edit_text.get_displayed_text())
+                    .alignment(Alignment::Left)
+                    .style(Style::default());
+            },
+            InputMode::Search => {
                 message_paragraph = Paragraph::new(tui_data.search_text.get_displayed_text())
                     .alignment(Alignment::Left)
-                    .style(Style::default().fg(Color::White));
+                    .style(Style::default());
             },
         }
         f.render_widget(message_paragraph, area);
@@ -198,26 +226,7 @@ impl BrnTui {
     fn open_selected_note<B: Backend + Write>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) {
         if let Some(selected_note_name) = tui_data.note_list.selected_item() {
             if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
-                execute!(
-                    terminal.backend_mut(),
-                    LeaveAlternateScreen,
-                    DisableMouseCapture
-                ).unwrap();
-
-                match Notes::open(&note_id, settings) {
-                    Ok(None) => (),
-                    Ok(Some(message)) => tui_data.message = "INFO: ".to_string() + &message,
-                    Err(message) => tui_data.message = "ERROR: ".to_string() + &message,
-                }
-
-                // Force full redraw in the terminal
-                terminal.clear().unwrap();
-
-                execute!(
-                    terminal.backend_mut(),
-                    EnterAlternateScreen,
-                    EnableMouseCapture
-                ).unwrap();
+                BrnTui::open_note(&note_id, terminal, tui_data, settings);
             }
         }
     }
@@ -238,5 +247,41 @@ impl BrnTui {
     }
 
     fn add_note<B: Backend + Write>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) {
+        let note_type = match tui_data.edit_text.get_content_text().as_str() {
+            "Q" | "q" => NoteType::Quote,
+            "J" | "j" => NoteType::Journal,
+            "T" | "t" | _ => NoteType::Topic,
+        };
+
+        match Notes::add(tui_data.note_name_cache.as_str(), note_type, settings) {
+            Ok(None) => (),
+            Ok(Some(note_id)) => {
+                BrnTui::open_note(&note_id, terminal, tui_data, settings);
+            },
+            Err(error) => tui_data.message = "ERROR: ".to_string() + &error,
+        };
+    }
+
+    fn open_note<B: Backend + Write>(note_id: &str, terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) {
+        execute!(
+            terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        ).unwrap();
+
+        match Notes::open(&note_id, settings) {
+            Ok(None) => (),
+            Ok(Some(message)) => tui_data.message = "INFO: ".to_string() + &message,
+            Err(message) => tui_data.message = "ERROR: ".to_string() + &message,
+        }
+
+        // Force full redraw in the terminal
+        terminal.clear().unwrap();
+
+        execute!(
+            terminal.backend_mut(),
+            EnterAlternateScreen,
+            EnableMouseCapture
+        ).unwrap();
     }
 }

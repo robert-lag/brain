@@ -1,4 +1,5 @@
 pub enum InputMode {
     Normal,
-    Edit
+    Edit,
+    Search,
 }

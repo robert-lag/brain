@@ -75,7 +75,7 @@ lazy_static! {
         )
     "##).unwrap();
     static ref NOTE_NAME_VALIDATOR: Regex = Regex::new(r##"(?x)
-        ^[ \(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*$
+        ^[\s\(\)\[\]\-a-zA-Z0-9*+\#\\"'´`_.:,;<>]*$
     "##).unwrap();
     static ref WHITESPACE_VALIDATOR: Regex = Regex::new(r"^\s*$").unwrap();
 }
@@ -204,7 +204,7 @@ impl Notes {
         }
 
         if !NOTE_NAME_VALIDATOR.is_match(note_name) {
-            return Err(format!("add_note: the note name contains illegal characters"));
+            return Err(format!("add_note: the note name '{}' contains illegal characters", note_name));
         }
 
         if let Some(note) = Notes::create_note_from_template(
@@ -218,8 +218,7 @@ impl Notes {
             }
 
             Database::insert_note(&note.note_id, &note.note_name, &note.file_name, note.creation_date_time);
-            let result_message = Notes::open(&note.note_id, settings);
-            return result_message;
+            return Ok(Some(note.note_id));
         }
 
         return Ok(None);

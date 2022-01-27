@@ -274,7 +274,13 @@ fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {
 
     match Notes::add(note_name, note_type, settings) {
         Ok(None) => (),
-        Ok(Some(message)) => Message::warning(&message),
+        Ok(Some(note_id)) => {
+            match Notes::open(&note_id, settings) {
+                Ok(None) => (),
+                Ok(Some(message)) => Message::warning(&message),
+                Err(error) => Message::error(&error),
+            }
+        },
         Err(error) => Message::error(&error),
     }
 }

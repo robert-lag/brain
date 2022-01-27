@@ -8,7 +8,9 @@ pub struct TuiData {
     pub note_content_preview: String,
     pub message: String,
     pub search_text: InputString,
+    pub edit_text: InputString,
     pub input_mode: InputMode,
+    pub note_name_cache: String,
 }
 
 impl Default for TuiData {
@@ -17,8 +19,10 @@ impl Default for TuiData {
             note_list: StatefulList::with_items(Notes::get(100)),
             note_content_preview: String::default(),
             message: String::default(),
-            search_text: InputString::default(),
+            search_text: InputString::from("/"),
+            edit_text: InputString::from("Name: "),
             input_mode: InputMode::Normal,
+            note_name_cache: String::default(),
         };
         tui_data.note_list.select(Some(0));
         return tui_data;
