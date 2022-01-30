@@ -1,6 +1,7 @@
 mod collection_tool;
 mod database;
 mod directory;
+mod history;
 mod message;
 mod note_property;
 mod note_tagging;

@@ -381,7 +381,7 @@ impl Notes {
             }
         };
 
-        settings.add_to_note_history(note_id);
+        settings.note_history.add(note_id);
         if settings.backlinking_enabled {
             Notes::create_backlinks_by_searching(&note, settings);
         }
@@ -687,7 +687,7 @@ impl Notes {
     pub fn get_note_history(settings: &Settings) -> Vec<Note> {
         let mut note_list: Vec<Note> = Vec::new();
 
-        for note_id in settings.get_note_history_iterator() {
+        for note_id in settings.note_history.list() {
             if let Some(note) = Database::get_note_where_id(&note_id) {
                 note_list.push(note);
             }
