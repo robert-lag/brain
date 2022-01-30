@@ -69,6 +69,17 @@ impl BrnTui {
                             tui_data.edit_text.set_pre_text("Name: ");
                             tui_data.input_mode = InputMode::Edit;
                         },
+                        KeyCode::Char('d') => {
+                            let note_list = Notes::get(100);
+                            tui_data.note_list.replace_items_with(note_list);
+                            tui_data.note_list_title = String::from("List");
+                        },
+                        KeyCode::Char('h') => {
+                            let note_history = Notes::get_note_history(settings);
+                            tui_data.note_list.replace_items_with(note_history.iter().map(|m| m.note_name.clone()).collect());
+                            tui_data.note_list.select(Some(0));
+                            tui_data.note_list_title = String::from("History");
+                        },
                         KeyCode::Char('/')
                             => tui_data.input_mode = InputMode::Search,
                         _ => (),
@@ -98,6 +109,7 @@ impl BrnTui {
                         KeyCode::Enter => {
                             tui_data.input_mode = InputMode::Normal;
                             BrnTui::execute_search(tui_data, settings);
+                            tui_data.note_list_title = tui_data.search_text.get_displayed_text();
                         }
                         KeyCode::Char(c) => {
                             tui_data.search_text.push(c);
@@ -158,7 +170,7 @@ impl BrnTui {
             .highlight_symbol("> ")
             .block(
                 Block::default()
-                    .title("List")
+                    .title(tui_data.note_list_title.clone())
                     .borders(Borders::ALL)
             );
         f.render_stateful_widget(list, area, tui_data.note_list.get_state());

@@ -10,6 +10,7 @@ pub struct Settings {
     pub zettelkasten_dir: OsString,
     pub backlinking_enabled: bool,
     pub print_to_stdout: bool,
+    pub note_history_capacity: usize,
     note_history: VecDeque<String>,
 }
 
@@ -19,6 +20,7 @@ impl Settings {
             notes_dir: OsString::new(),
             zettelkasten_dir: OsString::new(),
             note_history: VecDeque::new(),
+            note_history_capacity: 30,
             backlinking_enabled: true,
             print_to_stdout: true,
         };
@@ -27,9 +29,9 @@ impl Settings {
     }
 
     pub fn add_to_note_history(&mut self, note_id: &str) {
-        self.note_history.push_back(note_id.to_string());
-        if self.note_history.len() > 30 {
-            self.note_history.pop_front();
+        self.note_history.push_front(note_id.to_string());
+        if self.note_history.len() > self.note_history_capacity {
+            self.note_history.pop_back();
         }
         self.save_note_history();
     }

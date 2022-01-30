@@ -237,7 +237,7 @@ fn exec_search_command(matches: &ArgMatches, settings: &mut Settings) {
     let search_string = matches.value_of("search-string").unwrap_or_default();
 
     let search_results = Notes::search(search_string);
-    Notes::display_search_results_of(search_results)
+    Notes::print_search_results(search_results)
 }
 
 fn exec_random_command(_matches: &ArgMatches, settings: &mut Settings) {
@@ -253,7 +253,8 @@ fn exec_history_command(_matches: &ArgMatches, settings: &mut Settings) {
         return;
     }
 
-    Notes::print_note_history(settings);
+    let note_history = Notes::get_note_history(settings);
+    Notes::print_note_list(note_history);
 }
 
 fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {
