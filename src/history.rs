@@ -1,5 +1,3 @@
-use crate::message::Message;
-
 use std::collections::VecDeque;
 use std::fs::{ self, File };
 use std::io::{ Write, Read };
@@ -20,35 +18,33 @@ impl History {
         };
     }
 
-    pub fn init(&mut self, file_path: PathBuf) {
+    pub fn init(&mut self, file_path: PathBuf) -> Result<(), String> {
         self.history_file_path = file_path;
-        self.load();
+        return self.load();
     }
 
-    pub fn add(&mut self, note_id: &str) {
+    pub fn add(&mut self, note_id: &str) -> Result<(), String> {
         self.note_history.push_front(note_id.to_string());
         if self.note_history.len() > self.note_history_capacity {
             self.note_history.pop_back();
         }
-        self.save();
+        return self.save();
     }
 
-    fn save(&self) {
+    fn save(&self) -> Result<(), String> {
         let history_file_path_prefix = self.history_file_path.parent().unwrap();
         if let Err(error) = fs::create_dir_all(history_file_path_prefix) {
-            Message::error(&format!("save_note_history: couldn't create file path '{}': {}",
+            return Err(format!("save_note_history: couldn't create file path '{}': {}",
                 history_file_path_prefix.to_string_lossy(),
                 error));
-            return;
         }
 
         let mut history_file = match File::create(&self.history_file_path) {
             Ok(value) => value,
             Err(error) => {
-                Message::error(&format!("save_note_history: couldn't access history file at '{}': {}",
+                return Err(format!("save_note_history: couldn't access history file at '{}': {}",
                     self.history_file_path.to_string_lossy(),
                     error));
-                return;
             }
         };
 
@@ -63,41 +59,43 @@ impl History {
             }
 
             if let Err(error) = history_file.write(&history_entry.as_bytes()) {
-                Message::warning(&format!("save_note_history: couldn't write note id {} to history file: {}",
+                return Err(format!("save_note_history: couldn't write note id {} to history file: {}",
                     note_id,
                     error));
             }
         }
+        
+        return Ok(());
     }
 
-    fn load(&mut self) {
+    fn load(&mut self) -> Result<(), String> {
         let history_file_path_prefix = self.history_file_path.parent().unwrap();
         if let Err(error) = fs::create_dir_all(history_file_path_prefix) {
-            Message::error(&format!("save_note_history: couldn't create file path '{}': {}",
+            return Err(format!("save_note_history: couldn't create file path '{}': {}",
                 history_file_path_prefix.to_string_lossy(),
                 error));
-            return;
         }
 
         let mut history_file = match File::open(&self.history_file_path) {
             Ok(value) => value,
             Err(error) => {
-                Message::warning(&format!("load_note_history: couldn't access history file at '{}': {}",
+                return Err(format!("load_note_history: couldn't access history file at '{}': {}",
                     self.history_file_path.to_string_lossy(),
                     error));
-                return;
             }
         };
 
         let mut note_history_string = String::new();
         if let Err(error) = history_file.read_to_string(&mut note_history_string) {
-            Message::warning(&format!("load_note_history: couldn't load note history: {}",
+            return Err(format!("load_note_history: couldn't load note history: {}",
                 error));
         }
 
         for note_id in note_history_string.split('\n') {
             self.note_history.push_back(note_id.to_string());
         }
+
+        return Ok(());
     }
 
     pub fn list(&self) -> Vec<String> {

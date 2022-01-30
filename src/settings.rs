@@ -1,4 +1,5 @@
 use crate::history::History;
+use crate::message::Message;
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -22,7 +23,9 @@ impl Settings {
         };
 
         let history_file_path = PathBuf::from(&settings.zettelkasten_dir).join("history");
-        settings.note_history.init(history_file_path);
+        if let Err(error) = settings.note_history.init(history_file_path) {
+            Message::error(&("Initializing history: ".to_string() + &error));
+        }
         return settings;
     }
 }
