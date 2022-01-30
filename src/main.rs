@@ -1,6 +1,7 @@
 mod collection_tool;
 mod database;
 mod directory;
+mod history;
 mod message;
 mod note_property;
 mod note_tagging;
@@ -123,12 +124,12 @@ fn main() {
         )
         .get_matches();
 
-    let mut settings = Settings::new();
 
-    let notes_dir = matches.value_of_os("directory").unwrap_or(OsStr::new("./"));
-    let notes_dir_path = Path::new(notes_dir);
-    settings.notes_dir = notes_dir.to_os_string();
-    settings.zettelkasten_dir = notes_dir_path.join(".zettelkasten").into_os_string();
+    let notes_dir = matches.value_of_os("directory").unwrap_or(OsStr::new("./")).to_os_string();
+    let notes_dir_path = Path::new(&notes_dir);
+    let zettelkasten_dir = notes_dir_path.join(".zettelkasten").into_os_string();
+    let mut settings = Settings::init(notes_dir, zettelkasten_dir);
+
     Database::set_db_path(&settings.zettelkasten_dir);
 
     if matches.is_present("no-backlinking") {
@@ -237,7 +238,7 @@ fn exec_search_command(matches: &ArgMatches, settings: &mut Settings) {
     let search_string = matches.value_of("search-string").unwrap_or_default();
 
     let search_results = Notes::search(search_string);
-    Notes::display_search_results_of(search_results)
+    Notes::print_search_results(search_results)
 }
 
 fn exec_random_command(_matches: &ArgMatches, settings: &mut Settings) {
@@ -253,7 +254,8 @@ fn exec_history_command(_matches: &ArgMatches, settings: &mut Settings) {
         return;
     }
 
-    Notes::print_note_history(settings);
+    let note_history = Notes::get_note_history(settings);
+    Notes::print_note_list(note_history);
 }
 
 fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {

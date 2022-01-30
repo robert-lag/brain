@@ -11,6 +11,7 @@ pub struct TuiData {
     pub edit_text: InputString,
     pub input_mode: InputMode,
     pub note_name_cache: String,
+    pub note_list_title: String,
 }
 
 impl Default for TuiData {
@@ -23,6 +24,7 @@ impl Default for TuiData {
             edit_text: InputString::from("Name: "),
             input_mode: InputMode::Normal,
             note_name_cache: String::default(),
+            note_list_title: String::from("List"),
         };
         tui_data.note_list.select(Some(0));
         return tui_data;

@@ -178,7 +178,7 @@ impl Notes {
         }
     }
 
-    pub fn display_search_results_of(search_results: Vec<NoteTagging>) {
+    pub fn print_search_results(search_results: Vec<NoteTagging>) {
         for search_result in search_results {
             if let Some(note) = Database::get_note_where_id(&search_result.note_id) {
                 let tag_name = &search_result.tag_name.as_ref();
@@ -381,7 +381,7 @@ impl Notes {
             }
         };
 
-        settings.add_to_note_history(note_id);
+        settings.note_history.add(note_id);
         if settings.backlinking_enabled {
             Notes::create_backlinks_by_searching(&note, settings);
         }
@@ -684,11 +684,21 @@ impl Notes {
         }
     }
 
-    pub fn print_note_history(settings: &Settings) {
-        for note_id in settings.get_note_history_iterator() {
+    pub fn get_note_history(settings: &Settings) -> Vec<Note> {
+        let mut note_list: Vec<Note> = Vec::new();
+
+        for note_id in settings.note_history.list() {
             if let Some(note) = Database::get_note_where_id(&note_id) {
-                println!("{} {}", note_id.yellow(), note.note_name);
+                note_list.push(note);
             }
+        }
+
+        return note_list;
+    }
+
+    pub fn print_note_list(note_list: Vec<Note>) {
+        for note in note_list {
+            println!("{} {}", note.note_id.yellow(), note.note_name);
         }
     }
 
