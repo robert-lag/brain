@@ -290,7 +290,12 @@ fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
-    Notes::remove(matches.value_of("name").unwrap_or_default(), &settings.notes_dir);
+
+    let note_name = matches.value_of("name").unwrap_or_default();
+
+    if let Err(error) = Notes::remove(note_name, &settings.notes_dir) {
+        Message::error(&error);
+    }
 }
 
 fn exec_get_name_command(matches: &ArgMatches, settings: &mut Settings) {

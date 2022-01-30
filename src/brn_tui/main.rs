@@ -116,7 +116,9 @@ impl BrnTui {
                             let confirmation_validator = Regex::new("^[Yy]$").unwrap();
                             if confirmation_validator.is_match(&tui_data.edit_text.get_content_text()) {
                                 if let Some(selected_note) = tui_data.note_list.selected_item() {
-                                    Notes::remove(selected_note, &settings.notes_dir);
+                                    if let Err(error) = Notes::remove(selected_note, &settings.notes_dir) {
+                                        tui_data.message = error;
+                                    }
                                 }
                             }
                             tui_data.input_mode = InputMode::Normal;

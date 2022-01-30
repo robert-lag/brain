@@ -266,7 +266,7 @@ impl Notes {
         return Some(Note::new(note_id, note_name.to_string(), file_name, creation_date_time));
     }
 
-    pub fn remove(note_name: &str, notes_dir: &OsStr) {
+    pub fn remove(note_name: &str, notes_dir: &OsStr) -> Result<(), String> {
         let note_id = match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
             Some(value) => value,
             None => {
@@ -278,8 +278,7 @@ impl Notes {
         let note = match Database::get_note_where_id(&note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!("remove_note: note couldn't be removed: the note id or note name '{}' does not exist!", note_id));
-                return;
+                return Err(format!("remove_note: note couldn't be removed: the note id or note name '{}' does not exist!", note_id));
             }
         };
 
@@ -291,10 +290,11 @@ impl Notes {
         match fs::remove_file(&note_file_path){
             Ok(_) => {  },
             Err(error) => {
-                Message::error(&format!("remove_note: note file '{}' couldn't be removed: {}", note_file_path.to_string_lossy(), error));
-                return;
+                return Err(format!("remove_note: note file '{}' couldn't be removed: {}", note_file_path.to_string_lossy(), error));
             }
         };
+
+        return Ok(());
     }
 
     fn delete_tags_of_note(note_id: &str) {
@@ -381,7 +381,9 @@ impl Notes {
             }
         };
 
-        settings.note_history.add(note_id);
+        if let Err(error) = settings.note_history.add(note_id) {
+            return Err(error);
+        }
         if settings.backlinking_enabled {
             Notes::create_backlinks_by_searching(&note, settings);
         }
