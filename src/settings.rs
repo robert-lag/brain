@@ -1,6 +1,7 @@
 use crate::history::History;
 
 use std::ffi::OsString;
+use std::path::PathBuf;
 
 pub struct Settings {
     pub notes_dir: OsString,
@@ -11,13 +12,17 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub fn new() -> Self {
-        return Settings {
-            notes_dir: OsString::new(),
-            zettelkasten_dir: OsString::new(),
-            note_history: History::init(),
+    pub fn init(notes_dir: OsString, zettelkasten_dir: OsString) -> Self {
+        let mut settings = Settings {
+            notes_dir: notes_dir,
+            zettelkasten_dir: zettelkasten_dir,
+            note_history: History::new(),
             backlinking_enabled: true,
             print_to_stdout: true,
         };
+
+        let history_file_path = PathBuf::from(&settings.zettelkasten_dir).join("history");
+        settings.note_history.init(history_file_path);
+        return settings;
     }
 }

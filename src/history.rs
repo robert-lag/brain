@@ -1,23 +1,28 @@
 use crate::message::Message;
 
-use std::collections::{ VecDeque };
+use std::collections::VecDeque;
 use std::fs::{ self, File };
 use std::io::{ Write, Read };
+use std::path::PathBuf;
 
 pub struct History {
     pub note_history_capacity: usize,
     note_history: VecDeque<String>,
+    history_file_path: PathBuf,
 }
 
 impl History {
-    pub fn init() -> History {
-        let mut history = History {
+    pub fn new() -> History {
+        return History {
             note_history: VecDeque::new(),
             note_history_capacity: 30,
+            history_file_path: PathBuf::default(),
         };
-        history.load();
+    }
 
-        return history;
+    pub fn init(&mut self, file_path: PathBuf) {
+        self.history_file_path = file_path;
+        self.load();
     }
 
     pub fn add(&mut self, note_id: &str) {
@@ -29,12 +34,7 @@ impl History {
     }
 
     fn save(&self) {
-        let data_dir = match dirs::data_dir() {
-            Some(value) => value,
-            None => return
-        };
-        let history_file_path = data_dir.join("zettelkasten").join("history");
-        let history_file_path_prefix = history_file_path.parent().unwrap();
+        let history_file_path_prefix = self.history_file_path.parent().unwrap();
         if let Err(error) = fs::create_dir_all(history_file_path_prefix) {
             Message::error(&format!("save_note_history: couldn't create file path '{}': {}",
                 history_file_path_prefix.to_string_lossy(),
@@ -42,11 +42,11 @@ impl History {
             return;
         }
 
-        let mut history_file = match File::create(&history_file_path) {
+        let mut history_file = match File::create(&self.history_file_path) {
             Ok(value) => value,
             Err(error) => {
                 Message::error(&format!("save_note_history: couldn't access history file at '{}': {}",
-                    history_file_path.to_string_lossy(),
+                    self.history_file_path.to_string_lossy(),
                     error));
                 return;
             }
@@ -71,12 +71,7 @@ impl History {
     }
 
     fn load(&mut self) {
-        let data_dir = match dirs::data_dir() {
-            Some(value) => value,
-            None => return
-        };
-        let history_file_path = data_dir.join("zettelkasten").join("history");
-        let history_file_path_prefix = history_file_path.parent().unwrap();
+        let history_file_path_prefix = self.history_file_path.parent().unwrap();
         if let Err(error) = fs::create_dir_all(history_file_path_prefix) {
             Message::error(&format!("save_note_history: couldn't create file path '{}': {}",
                 history_file_path_prefix.to_string_lossy(),
@@ -84,11 +79,11 @@ impl History {
             return;
         }
 
-        let mut history_file = match File::open(&history_file_path) {
+        let mut history_file = match File::open(&self.history_file_path) {
             Ok(value) => value,
             Err(error) => {
                 Message::warning(&format!("load_note_history: couldn't access history file at '{}': {}",
-                    history_file_path.to_string_lossy(),
+                    self.history_file_path.to_string_lossy(),
                     error));
                 return;
             }

@@ -72,6 +72,7 @@ impl BrnTui {
                         KeyCode::Char('d') => {
                             let note_list = Notes::get(100);
                             tui_data.note_list.replace_items_with(note_list);
+                            tui_data.note_list.select(Some(0));
                             tui_data.note_list_title = String::from("List");
                         },
                         KeyCode::Char('h') => {

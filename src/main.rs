@@ -124,12 +124,12 @@ fn main() {
         )
         .get_matches();
 
-    let mut settings = Settings::new();
 
-    let notes_dir = matches.value_of_os("directory").unwrap_or(OsStr::new("./"));
-    let notes_dir_path = Path::new(notes_dir);
-    settings.notes_dir = notes_dir.to_os_string();
-    settings.zettelkasten_dir = notes_dir_path.join(".zettelkasten").into_os_string();
+    let notes_dir = matches.value_of_os("directory").unwrap_or(OsStr::new("./")).to_os_string();
+    let notes_dir_path = Path::new(&notes_dir);
+    let zettelkasten_dir = notes_dir_path.join(".zettelkasten").into_os_string();
+    let mut settings = Settings::init(notes_dir, zettelkasten_dir);
+
     Database::set_db_path(&settings.zettelkasten_dir);
 
     if matches.is_present("no-backlinking") {
