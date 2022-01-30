@@ -155,11 +155,15 @@ fn main() {
 
 fn exec_init_command(_matches: &ArgMatches, settings: &mut Settings) {
     if Directory::is_zettelkasten_dir(&settings.notes_dir, true) {
-        println!("the specified directory is already a zettelkasten directory: {}",
-            &settings.notes_dir.to_string_lossy());
+        Message::info(&format!("the specified directory is already a zettelkasten directory: {}",
+            &settings.notes_dir.to_string_lossy()));
         return;
     }
+
     initialize_zettelkasten(&settings.notes_dir);
+    if let Err(error) = settings.note_history.init(&settings.zettelkasten_dir.as_os_str()) {
+        Message::info(&("initializing history: ".to_string() + &error));
+    }
 }
 
 fn initialize_zettelkasten(directory: &OsStr) {
@@ -167,7 +171,7 @@ fn initialize_zettelkasten(directory: &OsStr) {
     let zettelkasten_dir_path = notes_path.join(".zettelkasten");
 
     match fs::create_dir(&zettelkasten_dir_path) {
-        Ok(_) => println!("initialized zettelkasten directory in '{}'", &notes_path.display()),
+        Ok(_) => Message::info(&format!("initialized zettelkasten directory in '{}'", &notes_path.display())),
         Err(error) => {
             Message::error(&format!("problem creating the zettelkasten directory in '{}': {}",
                 &notes_path.display(),
