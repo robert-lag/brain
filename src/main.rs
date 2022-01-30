@@ -47,7 +47,7 @@ fn main() {
             .about("Initializes a new zettelkasten directory")
         )
         .subcommand(SubCommand::with_name("tui")
-            .about("Show TUI interface.")
+            .about("Shows an interactive TUI interface")
         )
         .subcommand(SubCommand::with_name("list")
             .about("Lists the last created notes")
@@ -123,7 +123,6 @@ fn main() {
             )
         )
         .get_matches();
-
 
     let notes_dir = matches.value_of_os("directory").unwrap_or(OsStr::new("./")).to_os_string();
     let notes_dir_path = Path::new(&notes_dir);
