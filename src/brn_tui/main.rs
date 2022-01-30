@@ -13,6 +13,7 @@ use crossterm::{
 };
 use std::io;
 use std::io::Write;
+use regex::Regex;
 use tui::{
     backend::{ Backend, CrosstermBackend },
     layout::{ Alignment, Constraint, Direction, Layout, Margin, Rect },
@@ -67,9 +68,9 @@ impl BrnTui {
                             => BrnTui::open_selected_note(terminal, tui_data, settings),
                         KeyCode::Char('a') => {
                             tui_data.edit_text.set_pre_text("Name: ");
-                            tui_data.input_mode = InputMode::Edit;
+                            tui_data.input_mode = InputMode::Add;
                         },
-                        KeyCode::Char('d') => {
+                        KeyCode::Char('d') | KeyCode::Esc => {
                             let note_list = Notes::get(100);
                             tui_data.note_list.replace_items_with(note_list);
                             tui_data.note_list.select(Some(0));
@@ -81,11 +82,15 @@ impl BrnTui {
                             tui_data.note_list.select(Some(0));
                             tui_data.note_list_title = String::from("History");
                         },
+                        KeyCode::Char('r') => {
+                            tui_data.edit_text.set_pre_text("Remove currently selected note [y|N]: ");
+                            tui_data.input_mode = InputMode::Remove;
+                        },
                         KeyCode::Char('/')
                             => tui_data.input_mode = InputMode::Search,
                         _ => (),
                     },
-                    InputMode::Edit => match key.code {
+                    InputMode::Add => match key.code {
                         KeyCode::Esc => tui_data.input_mode = InputMode::Normal,
                         KeyCode::Enter => {
                             if tui_data.note_name_cache.is_empty() {
@@ -96,6 +101,25 @@ impl BrnTui {
                                 tui_data.input_mode = InputMode::Normal;
                                 tui_data.edit_text.clear();
                             }
+                        }
+                        KeyCode::Char(c) => {
+                            tui_data.edit_text.push(c);
+                        },
+                        KeyCode::Backspace => {
+                            tui_data.edit_text.pop();
+                        },
+                        _ => (),
+                    },
+                    InputMode::Remove => match key.code {
+                        KeyCode::Esc => tui_data.input_mode = InputMode::Normal,
+                        KeyCode::Enter => {
+                            let confirmation_validator = Regex::new("^[Yy]$").unwrap();
+                            if confirmation_validator.is_match(&tui_data.edit_text.get_content_text()) {
+                                if let Some(selected_note) = tui_data.note_list.selected_item() {
+                                    Notes::remove(selected_note, &settings.notes_dir);
+                                }
+                            }
+                            tui_data.input_mode = InputMode::Normal;
                         }
                         KeyCode::Char(c) => {
                             tui_data.edit_text.push(c);
@@ -197,7 +221,7 @@ impl BrnTui {
                     .alignment(Alignment::Left)
                     .style(Style::default().fg(Color::LightRed));
             },
-            InputMode::Edit => {
+            InputMode::Add | InputMode::Remove => {
                 message_paragraph = Paragraph::new(tui_data.edit_text.get_displayed_text())
                     .alignment(Alignment::Left)
                     .style(Style::default());
