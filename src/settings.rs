@@ -2,7 +2,6 @@ use crate::history::History;
 use crate::message::Message;
 
 use std::ffi::OsString;
-use std::path::PathBuf;
 
 pub struct Settings {
     pub notes_dir: OsString,
@@ -22,9 +21,8 @@ impl Settings {
             print_to_stdout: true,
         };
 
-        let history_file_path = PathBuf::from(&settings.zettelkasten_dir).join("history");
-        if let Err(error) = settings.note_history.init(history_file_path) {
-            Message::error(&("Initializing history: ".to_string() + &error));
+        if let Err(error) = settings.note_history.init(&settings.zettelkasten_dir.as_os_str()) {
+            Message::info(&("initializing history: ".to_string() + &error));
         }
         return settings;
     }
