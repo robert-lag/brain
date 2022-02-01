@@ -7,6 +7,7 @@ use chrono::prelude::*;
 use lazy_static::lazy_static;
 use rusqlite::{ Error, Connection, Statement, params, named_params };
 use std::ffi::{ OsString, OsStr };
+use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -49,24 +50,44 @@ impl Database {
         ").unwrap();
     }
 
+    pub fn clear() -> bool {
+        let db_dir = &*DB_DIR_PATH.lock().unwrap();
+        if db_dir.is_empty() {
+            return false;
+        }
+
+        match fs::remove_file(Path::new(db_dir).join("data.db")) {
+            Ok(()) => (),
+            Err(_) => return false,
+        }
+
+        return true;
+    }
+
     pub fn set_db_path(db_file_path: &OsStr) {
         *DB_DIR_PATH.lock().unwrap() = db_file_path.to_os_string();
     }
 
-    pub fn insert_note(note_id: &str, note_name: &str, file_name: &str, creation_date_time: DateTime<Local>) {
-        let creation_timestamp = creation_date_time.format("%Y-%m-%d %H:%M:%S").to_string();
+    pub fn insert_note(note: &Note) -> bool {
+        if let Some(creation_date_time) = note.creation_date_time {
+            let creation_timestamp = creation_date_time.format("%Y-%m-%d %H:%M:%S").to_string();
 
-        let conn = Database::get_connection();
-        conn.execute(
-            "INSERT INTO note (note_id, note_name, file_name, creation_date)
-             VALUES (:note_id, :note_name, :file_name, :creation_timestamp)",
-            named_params!{
-                ":note_id": note_id,
-                ":note_name": note_name,
-                ":file_name": file_name,
-                ":creation_timestamp": creation_timestamp
-            }
-        ).unwrap();
+            let conn = Database::get_connection();
+            conn.execute(
+                "INSERT INTO note (note_id, note_name, file_name, creation_date)
+                VALUES (:note_id, :note_name, :file_name, :creation_timestamp)",
+                named_params!{
+                    ":note_id": note.note_id,
+                    ":note_name": note.note_name,
+                    ":file_name": note.file_name,
+                    ":creation_timestamp": creation_timestamp
+                }
+            ).unwrap();
+
+            return true;
+        } else {
+            return false;
+        }
     }
 
     pub fn get_random_note_id() -> Option<String> {
@@ -140,7 +161,7 @@ impl Database {
                     note_id: row.get(0).unwrap(),
                     note_name: row.get(1).unwrap(),
                     file_name: row.get(2).unwrap(),
-                    creation_date_time: Local.datetime_from_str(&row.get::<usize, String>(3).unwrap(), "%Y-%m-%d %H:%M:%S").unwrap(),
+                    creation_date_time: Local.datetime_from_str(&row.get::<usize, String>(3).unwrap(), "%Y-%m-%d %H:%M:%S").ok(),
                 })
             }
         ).ok();

@@ -1,6 +1,7 @@
 mod collection_tool;
 mod database;
 mod directory;
+mod file_utility;
 mod history;
 mod message;
 mod note_property;
@@ -10,6 +11,7 @@ mod note;
 mod notes;
 mod settings;
 mod brn_tui;
+mod note_metadata;
 
 use database::Database;
 use directory::Directory;
@@ -108,6 +110,9 @@ fn main() {
                 .required(true)
             )
         )
+        .subcommand(SubCommand::with_name("update-db")
+            .about("Updates the database entries for all notes in the zettelkasten directory")
+        )
         .subcommand(SubCommand::with_name("get-name")
             .about("Returns the name of the note with the specified id from the zettelkasten")
             .arg(Arg::with_name("id")
@@ -147,6 +152,7 @@ fn main() {
         ("history", Some(history_matches)) => exec_history_command(&history_matches, &mut settings),
         ("add", Some(add_matches)) => exec_add_command(&add_matches, &mut settings),
         ("rm", Some(remove_matches)) => exec_rm_command(&remove_matches, &mut settings),
+        ("update-db", Some(update_db_matches)) => exec_update_db_command(&update_db_matches, &mut settings),
         ("get-name", Some(get_name_matches)) => exec_get_name_command(&get_name_matches, &mut settings),
         ("get-file-name", Some(get_file_name_matches)) => exec_get_file_name_command(&get_file_name_matches, &mut settings),
         _ => (),
@@ -298,6 +304,16 @@ fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {
     let note_name = matches.value_of("name").unwrap_or_default();
 
     if let Err(error) = Notes::remove(note_name, &settings.notes_dir) {
+        Message::error(&error);
+    }
+}
+
+fn exec_update_db_command(_matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+
+    if let Err(error) = Notes::update_db_for_all_notes_in_project_folder(settings) {
         Message::error(&error);
     }
 }
