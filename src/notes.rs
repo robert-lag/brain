@@ -311,10 +311,10 @@ impl Notes {
         }
     }
 
-    pub fn index_all_notes_in_project_folder(settings: &mut Settings) -> Result<(), String> {
+    pub fn update_db_for_all_notes_in_project_folder(settings: &mut Settings) -> Result<(), String> {
         let cleared_successfully = Database::clear();
         if !cleared_successfully {
-            return Err(format!("index-all-notes: Database couldn't be cleared!"));
+            return Err(format!("update-db: Database couldn't be cleared!"));
         }
         Database::init();
 
@@ -329,7 +329,7 @@ impl Notes {
 
             let file_name = match path.file_name().unwrap().to_str() {
                 Some(value) => value,
-                None => return Err(format!("index-all-notes: The file name '{}' contains illegal characters!",
+                None => return Err(format!("update-db: The file name '{}' contains illegal characters!",
                     path.to_string_lossy())),
             };
 

@@ -110,8 +110,8 @@ fn main() {
                 .required(true)
             )
         )
-        .subcommand(SubCommand::with_name("index-all")
-            .about("Indexes all notes in the zettelkasten directory")
+        .subcommand(SubCommand::with_name("update-db")
+            .about("Updates the database entries for all notes in the zettelkasten directory")
         )
         .subcommand(SubCommand::with_name("get-name")
             .about("Returns the name of the note with the specified id from the zettelkasten")
@@ -152,7 +152,7 @@ fn main() {
         ("history", Some(history_matches)) => exec_history_command(&history_matches, &mut settings),
         ("add", Some(add_matches)) => exec_add_command(&add_matches, &mut settings),
         ("rm", Some(remove_matches)) => exec_rm_command(&remove_matches, &mut settings),
-        ("index-all", Some(index_all_matches)) => exec_index_all_command(&index_all_matches, &mut settings),
+        ("update-db", Some(update_db_matches)) => exec_update_db_command(&update_db_matches, &mut settings),
         ("get-name", Some(get_name_matches)) => exec_get_name_command(&get_name_matches, &mut settings),
         ("get-file-name", Some(get_file_name_matches)) => exec_get_file_name_command(&get_file_name_matches, &mut settings),
         _ => (),
@@ -308,12 +308,12 @@ fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {
     }
 }
 
-fn exec_index_all_command(_matches: &ArgMatches, settings: &mut Settings) {
+fn exec_update_db_command(_matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
 
-    if let Err(error) = Notes::index_all_notes_in_project_folder(settings) {
+    if let Err(error) = Notes::update_db_for_all_notes_in_project_folder(settings) {
         Message::error(&error);
     }
 }
