@@ -28,27 +28,27 @@ lazy_static! {
             ([a-zA-Z0-9]+?)     # $1 = Link text
         \]\]
     ").unwrap();
-    static ref NOTE_FORMAT_VALIDATOR: Regex = Regex::new(r##"(?x)
-        (                                                               # $1 = yaml header
+    static ref NOTE_FORMAT_VALIDATOR: Regex = Regex::new(r##"(?xs)
+        (                   # $1 = yaml header
             ^
             \s*
             ---[ \t]*
             \n*
-            ([\s\(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*)      # $2 = yaml text
+            (.*?)           # $2 = yaml text
             \n*
             ---[ \t]*
             \n?
         )
-        ([\s\(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*)          # $3 = body of the note
+        (.*)                # $3 = body of the note
         $
     "##).unwrap();
-    static ref NOTE_CONTENT_BACKLINK_VALIDATOR: Regex = Regex::new(r##"(?x)
+    static ref NOTE_CONTENT_BACKLINK_VALIDATOR: Regex = Regex::new(r##"(?xs)
         (                                                   # $1 = text before backlinks
             ^
             \s*
             ---[ \t]*
             \n*
-            [\s\(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*
+            .*?
         )
         (                                                   # $2 = backlinks category
             backlinks:\s?
@@ -67,16 +67,16 @@ lazy_static! {
         )
         (                                                   # $5 = text after backlinks
             \n?
-            [\s\(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*
+            .*?
             \n*
             ---[ \t]*
             \n?
-            [\s\(\){}\[\]\-a-zA-Z0-9*+\#/\\"'´`_.:,;<>|~?!$%&=]*
+            .*
             $
         )
     "##).unwrap();
     static ref NOTE_NAME_VALIDATOR: Regex = Regex::new(r##"(?x)
-        ^[\s\(\)\[\]\-a-zA-Z0-9*+\#\\"'´`_.:,;<>]*$
+        ^[\s\(\)\[\]\-a-zA-Z0-9*+\\"'´`_.:,;<>]*$
     "##).unwrap();
     static ref WHITESPACE_VALIDATOR: Regex = Regex::new(r"^\s*$").unwrap();
 }
