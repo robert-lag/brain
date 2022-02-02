@@ -14,7 +14,7 @@ impl History {
     pub fn new() -> History {
         return History {
             note_history: VecDeque::new(),
-            note_history_capacity: 30,
+            note_history_capacity: 100,
             history_file_path: PathBuf::default(),
         };
     }
@@ -25,10 +25,16 @@ impl History {
     }
 
     pub fn add(&mut self, note_id: &str) -> Result<(), String> {
-        self.note_history.push_front(note_id.to_string());
-        if self.note_history.len() > self.note_history_capacity {
-            self.note_history.pop_back();
+        if self.note_history.contains(&note_id.to_string()) {
+            self.note_history.retain(|x| x != &note_id.to_string());
+        } else {
+            if self.note_history.len() >= self.note_history_capacity {
+                self.note_history.pop_back();
+            }
         }
+
+        self.note_history.push_front(note_id.to_string());
+
         return self.save();
     }
 
