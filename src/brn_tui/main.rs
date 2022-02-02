@@ -167,7 +167,7 @@ impl BrnTui {
             .margin(0)
             .constraints(
                 [
-                    Constraint::Percentage(20),
+                    Constraint::Percentage(35),
                     Constraint::Min(0),
                 ].as_ref()
             )
@@ -204,9 +204,14 @@ impl BrnTui {
     }
 
     fn render_note_preview<B: Backend>(f: &mut Frame<B>, area: Rect, tui_data: &mut TuiData) {
+        let title = match tui_data.note_list.selected_item() {
+            Some(value) => value,
+            None => "Note preview",
+        };
+
         // Render note preview
         let outer_note_block = Block::default()
-                    .title("Note")
+                    .title(title)
                     .borders(Borders::ALL);
         f.render_widget(outer_note_block, area);
 
