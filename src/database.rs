@@ -90,19 +90,24 @@ impl Database {
         }
     }
 
-    pub fn get_random_note_id() -> Option<String> {
+    pub fn get_random_note_ids(amount: usize) -> Vec<String> {
         let conn = Database::get_connection();
 
-        let query_result = conn.query_row(
+        let select_statement = match conn.prepare(
             "SELECT note_id
              FROM note
              ORDER BY RANDOM()
-             LIMIT 1",
-            named_params!{ },
-            |row| row.get(0)
-        ).ok();
+             LIMIT ?"
+        ) {
+            Ok(query_result) => query_result,
+            Err(error) => {
+                Message::error(&error.to_string());
+                return Vec::new();
+            }
+        };
 
-        return query_result;
+        let rows = Database::get_rows_of_prepared_query(select_statement, &amount.to_string());
+        return rows;
     }
 
     pub fn get_note_id_where(note_property: NoteProperty, value: &str) -> Option<String> {

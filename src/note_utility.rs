@@ -367,15 +367,16 @@ impl NoteUtility {
     }
 
     pub fn open_random_note(settings: &mut Settings) {
-        let note_id = match Database::get_random_note_id() {
-            Some(value) => value,
-            None => {
-                Message::error("open_random_note: couldn't find a random note");
-                return;
-            }
-        };
+        let note_id;
+        let random_notes = Database::get_random_note_ids(1);
+        if random_notes.len() >= 1 {
+            note_id = &random_notes[0];
+        } else {
+            Message::error("open_random_note: couldn't find a random note");
+            return;
+        }
         
-        let note = match Database::get_note_where_id(&note_id) {
+        let note = match Database::get_note_where_id(note_id) {
             Some(value) => value,
             None => {
                 Message::error(&format!("open_random_note: couldn't open note: the note id '{}' does not exist!", note_id));
@@ -384,7 +385,7 @@ impl NoteUtility {
         };
         Message::info(&format!("opened note:  {} {} ", note_id.yellow(), note.note_name));
 
-        if let Err(error) = NoteUtility::open(&note_id, settings) {
+        if let Err(error) = NoteUtility::open(note_id, settings) {
             Message::error(&error);
         }
     }

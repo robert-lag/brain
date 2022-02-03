@@ -73,7 +73,7 @@ impl BrnTui {
                             tui_data.edit_text.set_pre_text("Name: ");
                             tui_data.input_mode = InputMode::Add;
                         },
-                        KeyCode::Char('d') | KeyCode::Esc => {
+                        KeyCode::Esc => {
                             let note_list = NoteUtility::get(100);
                             tui_data.note_list.replace_items_with(note_list);
                             tui_data.note_list.select(Some(0));
@@ -86,6 +86,19 @@ impl BrnTui {
                             tui_data.note_list_title = String::from("History");
                         },
                         KeyCode::Char('r') => {
+                            let note_id_list = Database::get_random_note_ids(10);
+                            let mut note_list = Vec::new();
+                            for note_id in note_id_list {
+                                if let Some(note) = Database::get_note_where_id(&note_id) {
+                                    note_list.push(note);
+                                };
+                            }
+
+                            tui_data.note_list.replace_items_with(note_list.iter().map(|m| m.note_name.clone()).collect());
+                            tui_data.note_list.select(Some(0));
+                            tui_data.note_list_title = String::from("Random notes");
+                        },
+                        KeyCode::Char('x') => {
                             tui_data.edit_text.set_pre_text("Remove currently selected note [y|N]: ");
                             tui_data.input_mode = InputMode::Remove;
                         },

@@ -129,10 +129,11 @@ brn tui
 | `k`        | down                                                   |
 | `l`        | open note                                              |
 | `h`        | show history of last visited notes                     |
+| `r`        | show a list of random notes                            |
 | `/`        | enter search mode                                      |    
-| `ESC`, `d` | show list of last created notes (default view)         |
+| `ESC`      | show list of last created notes (default view)         |
 | `a`        | add new note                                           |
-| `r`        | remove currently selected note                         |
+| `x`        | remove currently selected note                         |
 | `y`        | copy note link to currently selected note to clipboard |
 
 ## Note types
