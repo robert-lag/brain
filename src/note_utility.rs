@@ -143,6 +143,7 @@ impl NoteUtility {
                 search_note_names(&mut individual_search_results, search_string);
             }
             search_tags(&mut individual_search_results, search_string);
+            search_note_ids(&mut individual_search_results, search_string);
 
             // Intersect with already existing search results
             if is_negated_search_string {
@@ -164,6 +165,14 @@ impl NoteUtility {
             fn search_note_names(individual_search_results: &mut HashSet<NoteTagging>, individual_search_string: &str) {
                 let search_string_with_wildcards = format!("%{}%", individual_search_string);
                 let note_ids = Database::get_note_ids_where_property_is_like(NoteProperty::NoteName, &search_string_with_wildcards);
+                for note_id in note_ids {
+                    individual_search_results.insert(NoteTagging::from(note_id, None));
+                }
+            }
+
+            fn search_note_ids(individual_search_results: &mut HashSet<NoteTagging>, individual_search_string: &str) {
+                let search_string_with_wildcards = format!("%{}%", individual_search_string);
+                let note_ids = Database::get_note_ids_where_property_is_like(NoteProperty::NoteId, &search_string_with_wildcards);
                 for note_id in note_ids {
                     individual_search_results.insert(NoteTagging::from(note_id, None));
                 }
