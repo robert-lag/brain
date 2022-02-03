@@ -302,7 +302,7 @@ backlinks: [ ]
 Notes can be searched with the subcommand `brn search` or inside the TUI mode using the `/` shortcut:
 
 ~~~shell
-brn search my-first
+$ brn search my-first
 ~~~
 
 This can result in for example:
@@ -311,55 +311,82 @@ This can result in for example:
 T20200629000001 random note name        #my-first-tag
 T20200629000002 some other note     #my-first-tag
 T20200629000003 some other random note     #my-first-tag-2
-T20200629000004 my-first-interesting-note       #my-first-tag
-T20200718000005 my-first-note
+T20210629000004 my-first-interesting-note       #my-first-tag
+T20210718000005 my-first-note
 ~~~
 
 You can see that the first 3 results were found because of their tag `my-first-tag`. The fourth one was found because of its name and its tag. In this case the tag is also displayed. The last result was found only because of its name. As the tags of this note don't matter in this case they aren't displayed here either.
 
-If you only want to search for tags, then you can put a `#` in front of the search text:
+If you only want to search for tags, then you can put a `#` in front of the search text. Note that the search text must be quoted this time as the shell would recognise the search text as a comment otherwise:
 
 ~~~shell
-brn search #my-first
+$ brn search "#my-first"
 ~~~
 
 This will result in:
 
-~~~shell
+~~~
 T20200629000001 random note name        #my-first-tag
 T20200629000002 some other note     #my-first-tag
 T20200629000003 some other random note     #my-first-tag-2
-T20200629000004 my-first-interesting-note       #my-first-tag
+T20210629000004 my-first-interesting-note       #my-first-tag
 ~~~
 
 As you can see the note `my-first-note` isn't displayed anymore, as it doesn't have any tag that contains the text `my-first`.
 
-You can also combine different search requirements with `&&`. On the commandline you need to quote the search text as it now includes spaces:
+You can also combine different search requirements with `&&`. Note that you need to quote the search text now not only because of the `#` but also because it now includes spaces:
 
 ~~~shell
-brn search "#my-first && random"
+$ brn search "#my-first && random"
 ~~~
 
 This will result in:
 
-~~~shell
+~~~
 T20200629000001 random note name        #my-first-tag
 T20200629000003 some random note     #my-first-tag-2
 ~~~
 
-As you can see now there are only results which have a tag containing `my-first` and either a tag or a note name containing `random`.
+As you can see now there are only results which have a tag containing `my-first` and either a tag, a note name or note ID containing `random`.
 
 You can also filter the results based on things you don't want inside your results with `!`:
 
 ~~~shell
-brn search "#my-first && !random"
+$ brn search "#my-first && !random"
 ~~~
 
 This will result in:
 
-~~~shell
+~~~
 T20200629000002 some other note     #my-first-tag
-T20200629000004 my-first-interesting-note       #my-first-tag
+T20210629000004 my-first-interesting-note       #my-first-tag
 ~~~
 
-Now all results that include `random` in their note name or in any of their tags aren't displayed.
+Now all results that include `random` in their note name, note ID or in any of their tags aren't displayed.
+
+The specified search text also always searches the note IDs. As the note ID contains the timestamp of its creation this can be very useful. For example if you want to see all notes that were created in July 2021:
+
+~~~
+$ brn search 202107
+~~~
+
+This will result in:
+
+~~~
+T20210718000005 my-first-note
+J20210703000032 some journal written in july
+~~~
+
+You can also filter based on note type:
+
+~~~
+$ brn search T202107
+~~~
+
+This will result in:
+
+~~~
+T20210718000005 my-first-note
+~~~
+
+Note that the journal now doesn't appear as the note is not a Topic-note but a Journal-note.
