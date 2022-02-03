@@ -27,6 +27,7 @@ More information about the zettelkasten method:
     - [Adding notes](#adding-notes)
     - [Listing created notes](#listing-created-notes)
     - [TUI Mode](#tui-mode)
+        - [Keybindings in TUI Mode](#keybindings-in-tui-mode)
 - [Note types](#note-types)
 - [Note format](#note-format)
     - [Note format requirements](#note-format-requirements)
@@ -120,21 +121,21 @@ The TUI mode makes it easier to traverse thourgh your zettelkasten.
 brn tui
 ~~~
 
-#### Shortcuts in TUI mode
+#### Keybindings in TUI mode
 
-| **Keys**   | **Description**                                        |
-|------------|--------------------------------------------------------|
-| `q`        | quit the program                                       |
-| `j`        | up                                                     |
-| `k`        | down                                                   |
-| `l`        | open note                                              |
-| `h`        | show history of last visited notes                     |
-| `r`        | show a list of random notes                            |
-| `/`        | enter search mode                                      |    
-| `ESC`      | show list of last created notes (default view)         |
-| `a`        | add new note                                           |
-| `x`        | remove currently selected note                         |
-| `y`        | copy note link to currently selected note to clipboard |
+| **Keys**           | **Description**                                        |
+|--------------------|--------------------------------------------------------|
+| `q`                | quit the program                                       |
+| `j`, `UpArrow`     | up                                                     |
+| `k`, `DownArrow`   | down                                                   |
+| `l`, `LeftArrow`   | open note                                              |
+| `h`                | show history of last visited notes                     |
+| `r`                | show a list of random notes                            |
+| `/`                | enter search mode                                      |    
+| `ESC`              | show list of last created notes (default view)         |
+| `a`                | add new note                                           |
+| `x`                | remove currently selected note                         |
+| `y`                | copy note link to currently selected note to clipboard |
 
 ## Note types
 

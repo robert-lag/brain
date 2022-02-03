@@ -65,7 +65,7 @@ impl BrnTui {
                             => BrnTui::increment_selected_value(tui_data, settings),
                         KeyCode::Char('k') | KeyCode::Up
                             => BrnTui::decrement_selected_value(tui_data, settings),
-                        KeyCode::Char('l') | KeyCode::Enter
+                        KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter
                             => BrnTui::open_selected_note(terminal, tui_data, settings),
                         KeyCode::Char('y')
                             => BrnTui::copy_selected_note_as_link(tui_data),
