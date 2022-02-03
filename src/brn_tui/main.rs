@@ -3,9 +3,10 @@ use crate::brn_tui::input_mode::InputMode;
 use crate::database::Database;
 use crate::note_property::NoteProperty;
 use crate::note_type::NoteType;
-use crate::notes::Notes;
+use crate::note_utility::NoteUtility;
 use crate::settings::Settings;
 
+use clipboard::{ ClipboardProvider, ClipboardContext };
 use crossterm::{
     event::{ self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode },
     execute,
@@ -64,25 +65,40 @@ impl BrnTui {
                             => BrnTui::increment_selected_value(tui_data, settings),
                         KeyCode::Char('k') | KeyCode::Up
                             => BrnTui::decrement_selected_value(tui_data, settings),
-                        KeyCode::Char('l') | KeyCode::Enter
+                        KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter
                             => BrnTui::open_selected_note(terminal, tui_data, settings),
+                        KeyCode::Char('y')
+                            => BrnTui::copy_selected_note_as_link(tui_data),
                         KeyCode::Char('a') => {
                             tui_data.edit_text.set_pre_text("Name: ");
                             tui_data.input_mode = InputMode::Add;
                         },
-                        KeyCode::Char('d') | KeyCode::Esc => {
-                            let note_list = Notes::get(100);
+                        KeyCode::Esc => {
+                            let note_list = NoteUtility::get(100);
                             tui_data.note_list.replace_items_with(note_list);
                             tui_data.note_list.select(Some(0));
                             tui_data.note_list_title = String::from("List");
                         },
                         KeyCode::Char('h') => {
-                            let note_history = Notes::get_note_history(settings);
+                            let note_history = NoteUtility::get_note_history(settings);
                             tui_data.note_list.replace_items_with(note_history.iter().map(|m| m.note_name.clone()).collect());
                             tui_data.note_list.select(Some(0));
                             tui_data.note_list_title = String::from("History");
                         },
                         KeyCode::Char('r') => {
+                            let note_id_list = Database::get_random_note_ids(10);
+                            let mut note_list = Vec::new();
+                            for note_id in note_id_list {
+                                if let Some(note) = Database::get_note_where_id(&note_id) {
+                                    note_list.push(note);
+                                };
+                            }
+
+                            tui_data.note_list.replace_items_with(note_list.iter().map(|m| m.note_name.clone()).collect());
+                            tui_data.note_list.select(Some(0));
+                            tui_data.note_list_title = String::from("Random notes");
+                        },
+                        KeyCode::Char('x') => {
                             tui_data.edit_text.set_pre_text("Remove currently selected note [y|N]: ");
                             tui_data.input_mode = InputMode::Remove;
                         },
@@ -116,7 +132,7 @@ impl BrnTui {
                             let confirmation_validator = Regex::new("^[Yy]$").unwrap();
                             if confirmation_validator.is_match(&tui_data.edit_text.get_content_text()) {
                                 if let Some(selected_note) = tui_data.note_list.selected_item() {
-                                    if let Err(error) = Notes::remove(selected_note, &settings.notes_dir) {
+                                    if let Err(error) = NoteUtility::remove(selected_note, &settings.notes_dir) {
                                         tui_data.message = error;
                                     }
                                 }
@@ -167,7 +183,7 @@ impl BrnTui {
             .margin(0)
             .constraints(
                 [
-                    Constraint::Percentage(20),
+                    Constraint::Percentage(35),
                     Constraint::Min(0),
                 ].as_ref()
             )
@@ -204,9 +220,14 @@ impl BrnTui {
     }
 
     fn render_note_preview<B: Backend>(f: &mut Frame<B>, area: Rect, tui_data: &mut TuiData) {
+        let title = match tui_data.note_list.selected_item() {
+            Some(value) => value,
+            None => "Note preview",
+        };
+
         // Render note preview
         let outer_note_block = Block::default()
-                    .title("Note")
+                    .title(title)
                     .borders(Borders::ALL);
         f.render_widget(outer_note_block, area);
 
@@ -250,7 +271,7 @@ impl BrnTui {
     fn show_note_content_preview(tui_data: &mut TuiData, settings: &mut Settings) {
         if let Some(selected_note_name) = &tui_data.note_list.selected_item() {
             if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
-                match Notes::get_content_of_note(&note_id, settings) {
+                match NoteUtility::get_content_of_note(&note_id, settings) {
                     Ok(note_content) => {
                         tui_data.note_content_preview = note_content;
                     }
@@ -266,12 +287,23 @@ impl BrnTui {
         if let Some(selected_note_name) = tui_data.note_list.selected_item() {
             if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
                 BrnTui::open_note(&note_id, terminal, tui_data, settings);
-            }
-        }
+            };
+        };
+    }
+
+    fn copy_selected_note_as_link(tui_data: &mut TuiData) {
+        let mut clipboard_context: ClipboardContext = ClipboardProvider::new().unwrap();
+        if let Some(selected_note_name) = tui_data.note_list.selected_item() {
+            if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
+                if let Err(boxed_error) = clipboard_context.set_contents(format!("[[{}]] ", note_id)) {
+                    tui_data.message = (*boxed_error).to_string();
+                }
+            };
+        };
     }
 
     fn execute_search(tui_data: &mut TuiData, settings: &mut Settings) {
-        let search_results = Notes::search(&tui_data.search_text.get_content_text())
+        let search_results = NoteUtility::search(&tui_data.search_text.get_content_text())
             .iter()
             .map(|m| {
                 match Database::get_note_where_id(&m.note_id) {
@@ -292,7 +324,7 @@ impl BrnTui {
             "T" | "t" | _ => NoteType::Topic,
         };
 
-        match Notes::add(tui_data.note_name_cache.as_str(), note_type, settings) {
+        match NoteUtility::add(tui_data.note_name_cache.as_str(), note_type, settings) {
             Ok(None) => (),
             Ok(Some(note_id)) => {
                 BrnTui::open_note(&note_id, terminal, tui_data, settings);
@@ -308,7 +340,7 @@ impl BrnTui {
             DisableMouseCapture
         ).unwrap();
 
-        match Notes::open(&note_id, settings) {
+        match NoteUtility::open(&note_id, settings) {
             Ok(None) => (),
             Ok(Some(message)) => tui_data.message = "INFO: ".to_string() + &message,
             Err(message) => tui_data.message = "ERROR: ".to_string() + &message,
