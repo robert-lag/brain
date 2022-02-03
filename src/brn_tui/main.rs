@@ -6,6 +6,7 @@ use crate::note_type::NoteType;
 use crate::notes::Notes;
 use crate::settings::Settings;
 
+use clipboard::{ ClipboardProvider, ClipboardContext };
 use crossterm::{
     event::{ self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode },
     execute,
@@ -66,6 +67,8 @@ impl BrnTui {
                             => BrnTui::decrement_selected_value(tui_data, settings),
                         KeyCode::Char('l') | KeyCode::Enter
                             => BrnTui::open_selected_note(terminal, tui_data, settings),
+                        KeyCode::Char('y')
+                            => BrnTui::copy_selected_note_as_link(tui_data),
                         KeyCode::Char('a') => {
                             tui_data.edit_text.set_pre_text("Name: ");
                             tui_data.input_mode = InputMode::Add;
@@ -271,8 +274,19 @@ impl BrnTui {
         if let Some(selected_note_name) = tui_data.note_list.selected_item() {
             if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
                 BrnTui::open_note(&note_id, terminal, tui_data, settings);
-            }
-        }
+            };
+        };
+    }
+
+    fn copy_selected_note_as_link(tui_data: &mut TuiData) {
+        let mut clipboard_context: ClipboardContext = ClipboardProvider::new().unwrap();
+        if let Some(selected_note_name) = tui_data.note_list.selected_item() {
+            if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
+                if let Err(boxed_error) = clipboard_context.set_contents(format!("[[{}]] ", note_id)) {
+                    tui_data.message = (*boxed_error).to_string();
+                }
+            };
+        };
     }
 
     fn execute_search(tui_data: &mut TuiData, settings: &mut Settings) {

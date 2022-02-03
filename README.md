@@ -102,6 +102,16 @@ brn add "A Zettelkasten is great"
 brn list
 ~~~
 
+### Opening notes
+
+Brain opens notes in the editor specified by the `EDITOR` environment variable. This makes it possible to use your favorite editor for editing your notes.
+
+You can open a note either in the TUI mode or on the commandline:
+
+~~~
+brn open <note-id>
+~~~
+
 ### TUI mode
 
 The TUI mode makes it easier to traverse thourgh your zettelkasten.
@@ -112,17 +122,18 @@ brn tui
 
 #### Shortcuts in TUI mode
 
-| **Keys**   | **Description**                                |
-|------------|------------------------------------------------|
-| `q`        | quit the program                               |
-| `j`        | up                                             |
-| `k`        | down                                           |
-| `l`        | open note                                      |
-| `h`        | show history of last visited notes             |
-| `/`        | enter search mode                              |
-| `ESC`, `d` | show list of last created notes (default view) |
-| `a`        | add new note                                   |
-| `r`        | remove currently selected note                 |
+| **Keys**   | **Description**                                        |
+|------------|--------------------------------------------------------|
+| `q`        | quit the program                                       |
+| `j`        | up                                                     |
+| `k`        | down                                                   |
+| `l`        | open note                                              |
+| `h`        | show history of last visited notes                     |
+| `/`        | enter search mode                                      |    
+| `ESC`, `d` | show list of last created notes (default view)         |
+| `a`        | add new note                                           |
+| `r`        | remove currently selected note                         |
+| `y`        | copy note link to currently selected note to clipboard |
 
 ## Note types
 
