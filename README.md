@@ -2,6 +2,8 @@
 
 Brain is a commandline tool for the organisation of a zettelkasten or as some people call it: your second brain.
 
+![2022-02-03-131954](https://user-images.githubusercontent.com/61148783/152341690-98f3eea4-99dd-42b8-98c8-79d12f30b857.png)
+
 Brain doesn't use a regular *Luhmann's Zettelkasten* but a slightly altered version. The differences are:
 - Usage of timestamp as note ID
 - Possibility of using different types of notes (can be ignored if you don't want to use it). More information about this explained in [Note types](#note-types)
