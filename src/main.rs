@@ -7,8 +7,8 @@ mod message;
 mod note_property;
 mod note_tagging;
 mod note_type;
+mod note_utility;
 mod note;
-mod notes;
 mod settings;
 mod brn_tui;
 mod note_metadata;
@@ -18,7 +18,7 @@ use directory::Directory;
 use message::Message;
 use note_property::NoteProperty;
 use note_type::NoteType;
-use notes::Notes;
+use note_utility::NoteUtility;
 use settings::Settings;
 use brn_tui::main::BrnTui;
 
@@ -212,7 +212,7 @@ fn exec_list_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
-    Notes::list(matches.value_of("count").unwrap_or("100").parse().unwrap_or(100));
+    NoteUtility::list(matches.value_of("count").unwrap_or("100").parse().unwrap_or(100));
 }
 
 fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
@@ -224,12 +224,12 @@ fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
     let result;
     match Database::get_note_id_where(NoteProperty::NoteName, note_name) {
         Some(note_id) => {
-            result = Notes::open(&note_id, settings);
+            result = NoteUtility::open(&note_id, settings);
         }
         None => {
             // Maybe the note id was given instead of the name
             let note_id = note_name;
-            result = Notes::open(&note_id, settings);
+            result = NoteUtility::open(&note_id, settings);
         }
     };
 
@@ -246,8 +246,8 @@ fn exec_search_command(matches: &ArgMatches, settings: &mut Settings) {
     }
     let search_string = matches.value_of("search-string").unwrap_or_default();
 
-    let search_results = Notes::search(search_string);
-    Notes::print_search_results(search_results)
+    let search_results = NoteUtility::search(search_string);
+    NoteUtility::print_search_results(search_results)
 }
 
 fn exec_random_command(_matches: &ArgMatches, settings: &mut Settings) {
@@ -255,7 +255,7 @@ fn exec_random_command(_matches: &ArgMatches, settings: &mut Settings) {
         return;
     }
 
-    Notes::open_random_note(settings);
+    NoteUtility::open_random_note(settings);
 }
 
 fn exec_history_command(_matches: &ArgMatches, settings: &mut Settings) {
@@ -263,8 +263,8 @@ fn exec_history_command(_matches: &ArgMatches, settings: &mut Settings) {
         return;
     }
 
-    let note_history = Notes::get_note_history(settings);
-    Notes::print_note_list(note_history);
+    let note_history = NoteUtility::get_note_history(settings);
+    NoteUtility::print_note_list(note_history);
 }
 
 fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {
@@ -283,10 +283,10 @@ fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {
         note_type = NoteType::Topic;
     }
 
-    match Notes::add(note_name, note_type, settings) {
+    match NoteUtility::add(note_name, note_type, settings) {
         Ok(None) => (),
         Ok(Some(note_id)) => {
-            match Notes::open(&note_id, settings) {
+            match NoteUtility::open(&note_id, settings) {
                 Ok(None) => (),
                 Ok(Some(message)) => Message::warning(&message),
                 Err(error) => Message::error(&error),
@@ -303,7 +303,7 @@ fn exec_rm_command(matches: &ArgMatches, settings: &mut Settings) {
 
     let note_name = matches.value_of("name").unwrap_or_default();
 
-    if let Err(error) = Notes::remove(note_name, &settings.notes_dir) {
+    if let Err(error) = NoteUtility::remove(note_name, &settings.notes_dir) {
         Message::error(&error);
     }
 }
@@ -313,7 +313,7 @@ fn exec_update_db_command(_matches: &ArgMatches, settings: &mut Settings) {
         return;
     }
 
-    if let Err(error) = Notes::update_db_for_all_notes_in_project_folder(settings) {
+    if let Err(error) = NoteUtility::update_db_for_all_notes_in_project_folder(settings) {
         Message::error(&error);
     }
 }
@@ -324,7 +324,7 @@ fn exec_get_name_command(matches: &ArgMatches, settings: &mut Settings) {
     }
     
     let note_id = matches.value_of("id").unwrap_or_default();
-    Notes::print_note_name_of(note_id);
+    NoteUtility::print_note_name_of(note_id);
 }
 
 fn exec_get_file_name_command(matches: &ArgMatches, settings: &mut Settings) {
@@ -333,5 +333,5 @@ fn exec_get_file_name_command(matches: &ArgMatches, settings: &mut Settings) {
     }
     
     let note_id = matches.value_of("id").unwrap_or_default();
-    Notes::print_file_name_of(note_id);
+    NoteUtility::print_file_name_of(note_id);
 }

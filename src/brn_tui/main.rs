@@ -3,7 +3,7 @@ use crate::brn_tui::input_mode::InputMode;
 use crate::database::Database;
 use crate::note_property::NoteProperty;
 use crate::note_type::NoteType;
-use crate::notes::Notes;
+use crate::note_utility::NoteUtility;
 use crate::settings::Settings;
 
 use clipboard::{ ClipboardProvider, ClipboardContext };
@@ -74,13 +74,13 @@ impl BrnTui {
                             tui_data.input_mode = InputMode::Add;
                         },
                         KeyCode::Char('d') | KeyCode::Esc => {
-                            let note_list = Notes::get(100);
+                            let note_list = NoteUtility::get(100);
                             tui_data.note_list.replace_items_with(note_list);
                             tui_data.note_list.select(Some(0));
                             tui_data.note_list_title = String::from("List");
                         },
                         KeyCode::Char('h') => {
-                            let note_history = Notes::get_note_history(settings);
+                            let note_history = NoteUtility::get_note_history(settings);
                             tui_data.note_list.replace_items_with(note_history.iter().map(|m| m.note_name.clone()).collect());
                             tui_data.note_list.select(Some(0));
                             tui_data.note_list_title = String::from("History");
@@ -119,7 +119,7 @@ impl BrnTui {
                             let confirmation_validator = Regex::new("^[Yy]$").unwrap();
                             if confirmation_validator.is_match(&tui_data.edit_text.get_content_text()) {
                                 if let Some(selected_note) = tui_data.note_list.selected_item() {
-                                    if let Err(error) = Notes::remove(selected_note, &settings.notes_dir) {
+                                    if let Err(error) = NoteUtility::remove(selected_note, &settings.notes_dir) {
                                         tui_data.message = error;
                                     }
                                 }
@@ -258,7 +258,7 @@ impl BrnTui {
     fn show_note_content_preview(tui_data: &mut TuiData, settings: &mut Settings) {
         if let Some(selected_note_name) = &tui_data.note_list.selected_item() {
             if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
-                match Notes::get_content_of_note(&note_id, settings) {
+                match NoteUtility::get_content_of_note(&note_id, settings) {
                     Ok(note_content) => {
                         tui_data.note_content_preview = note_content;
                     }
@@ -290,7 +290,7 @@ impl BrnTui {
     }
 
     fn execute_search(tui_data: &mut TuiData, settings: &mut Settings) {
-        let search_results = Notes::search(&tui_data.search_text.get_content_text())
+        let search_results = NoteUtility::search(&tui_data.search_text.get_content_text())
             .iter()
             .map(|m| {
                 match Database::get_note_where_id(&m.note_id) {
@@ -311,7 +311,7 @@ impl BrnTui {
             "T" | "t" | _ => NoteType::Topic,
         };
 
-        match Notes::add(tui_data.note_name_cache.as_str(), note_type, settings) {
+        match NoteUtility::add(tui_data.note_name_cache.as_str(), note_type, settings) {
             Ok(None) => (),
             Ok(Some(note_id)) => {
                 BrnTui::open_note(&note_id, terminal, tui_data, settings);
@@ -327,7 +327,7 @@ impl BrnTui {
             DisableMouseCapture
         ).unwrap();
 
-        match Notes::open(&note_id, settings) {
+        match NoteUtility::open(&note_id, settings) {
             Ok(None) => (),
             Ok(Some(message)) => tui_data.message = "INFO: ".to_string() + &message,
             Err(message) => tui_data.message = "ERROR: ".to_string() + &message,

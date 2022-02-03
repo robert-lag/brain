@@ -81,8 +81,8 @@ lazy_static! {
     static ref WHITESPACE_VALIDATOR: Regex = Regex::new(r"^\s*$").unwrap();
 }
 
-pub struct Notes;
-impl Notes {
+pub struct NoteUtility;
+impl NoteUtility {
     pub fn list(count: i32) {
         let note_ids = Database::get_all_recent_note_ids(count);
 
@@ -208,7 +208,7 @@ impl Notes {
             return Err(format!("add_note: the note name '{}' contains illegal characters", note_name));
         }
 
-        if let Some(note) = Notes::create_note_from_template(
+        if let Some(note) = NoteUtility::create_note_from_template(
             note_name,
             note_type,
             &settings.notes_dir,
@@ -285,7 +285,7 @@ impl Notes {
 
         let note_file_path = Path::new(notes_dir).join(note.file_name);
 
-        Notes::delete_tags_of_note(&note_id);
+        NoteUtility::delete_tags_of_note(&note_id);
         Database::delete_note(&note_id);
 
         match fs::remove_file(&note_file_path){
@@ -343,7 +343,7 @@ impl Notes {
     }
 
     pub fn get_content_of_note(note_id: &str, settings: &mut Settings) -> Result<String, String> {
-        let absolute_file_path = match Notes::get_absolute_path_of_note(note_id, settings) {
+        let absolute_file_path = match NoteUtility::get_absolute_path_of_note(note_id, settings) {
             Ok(value) => value,
             Err(error) => return Err(error),
         };
@@ -375,7 +375,7 @@ impl Notes {
         };
         Message::info(&format!("opened note:  {} {} ", note_id.yellow(), note.note_name));
 
-        if let Err(error) = Notes::open(&note_id, settings) {
+        if let Err(error) = NoteUtility::open(&note_id, settings) {
             Message::error(&error);
         }
     }
@@ -393,7 +393,7 @@ impl Notes {
                 return Err(format!("couldn't read the EDITOR environment variable: '{}'", error));
             }
         };
-        let absolute_file_path = match Notes::get_absolute_path_of_note(note_id, settings) {
+        let absolute_file_path = match NoteUtility::get_absolute_path_of_note(note_id, settings) {
             Ok(value) => value,
             Err(error) => {
                 return Err(format!("couldn't get the absolute path of {}: '{}'",
@@ -417,10 +417,10 @@ impl Notes {
             return Err(error);
         }
         if settings.backlinking_enabled {
-            Notes::create_backlinks_by_searching(&note, settings);
+            NoteUtility::create_backlinks_by_searching(&note, settings);
         }
 
-        match Notes::check_metadata_of(&note, settings) {
+        match NoteUtility::check_metadata_of(&note, settings) {
             Ok(None) => return Ok(None),
             Ok(Some(message)) => return Ok(Some(message)),
             Err(error) => return Err("check_yaml_header_of: ".to_string() + &error),
@@ -465,7 +465,7 @@ impl Notes {
             for note_link_match in NOTE_LINK_VALIDATOR.captures_iter(note_body) {
                 let linked_note_id = note_link_match.get(1).unwrap().as_str();
                 if let Some(linked_note) = Database::get_note_where_id(linked_note_id) {
-                    Notes::add_backlink_to(&linked_note, &note.note_id, settings)
+                    NoteUtility::add_backlink_to(&linked_note, &note.note_id, settings)
                 }
             }
         } else {
@@ -501,7 +501,7 @@ impl Notes {
             let backlinks_string = create_backlinks_string_from(backlinks, backlink_id);
             let new_note_content = text_before_backlinks + &backlinks_string + text_after_backlinks;
 
-            if let Err(error) = Notes::replace_content_of_file(&absolute_note_file_path, new_note_content.as_bytes()) {
+            if let Err(error) = NoteUtility::replace_content_of_file(&absolute_note_file_path, new_note_content.as_bytes()) {
                 Message::error(&format!("add_backlink: couldn't change contents of note '{} {}': {}",
                     note.note_id.yellow(),
                     note.note_name,
@@ -568,7 +568,7 @@ impl Notes {
         }
 
         if !(open_file_again.trim().to_lowercase() == "n") {
-            if let Err(error) = Notes::open(note_id, settings) {
+            if let Err(error) = NoteUtility::open(note_id, settings) {
                 Message::error(&error);
             }
         }
@@ -618,11 +618,11 @@ impl Notes {
             Err(error) => return Err(error),
         };
 
-        if let Err(error) = Notes::check_metadata_name_of(&note.note_id, note_name, &note.note_name, settings) {
+        if let Err(error) = NoteUtility::check_metadata_name_of(&note.note_id, note_name, &note.note_name, settings) {
             return Ok(Some(error));
         }
 
-        if let Err(error) = Notes::check_metadata_tags_of(&note.note_id, tags, settings) {
+        if let Err(error) = NoteUtility::check_metadata_tags_of(&note.note_id, tags, settings) {
             return Ok(Some(error));
         }
 
@@ -660,12 +660,12 @@ impl Notes {
 
                 ---
             "#});
-            Notes::show_open_file_dialog_for(note_id, settings);
+            NoteUtility::show_open_file_dialog_for(note_id, settings);
         }
     }
 
     fn check_metadata_tags_of(note_id: &str, tags: Option<Vec<String>>, settings: &mut Settings) -> Result<(), String> {
-        Notes::delete_tags_of_note(note_id);
+        NoteUtility::delete_tags_of_note(note_id);
 
         match tags {
             Some(tags) => {
@@ -704,7 +704,7 @@ impl Notes {
                 ---
             "##});
 
-            Notes::show_open_file_dialog_for(note_id, settings);
+            NoteUtility::show_open_file_dialog_for(note_id, settings);
         }
     }
 }
