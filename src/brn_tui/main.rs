@@ -65,6 +65,10 @@ impl BrnTui {
                             => BrnTui::increment_selected_value(tui_data, settings),
                         KeyCode::Char('k') | KeyCode::Up
                             => BrnTui::decrement_selected_value(tui_data, settings),
+                        KeyCode::Char('g')
+                            => BrnTui::select_first_value(tui_data, settings),
+                        KeyCode::Char('G')
+                            => BrnTui::select_last_value(tui_data, settings),
                         KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter
                             => BrnTui::open_selected_note(terminal, tui_data, settings),
                         KeyCode::Char('y')
@@ -265,6 +269,17 @@ impl BrnTui {
 
     fn decrement_selected_value(tui_data: &mut TuiData, settings: &mut Settings) {
         tui_data.note_list.previous();
+        BrnTui::show_note_content_preview(tui_data, settings);
+    }
+
+    fn select_first_value(tui_data: &mut TuiData, settings: &mut Settings) {
+        tui_data.note_list.select(Some(0));
+        BrnTui::show_note_content_preview(tui_data, settings);
+    }
+
+    fn select_last_value(tui_data: &mut TuiData, settings: &mut Settings) {
+        let last_index = tui_data.note_list.get_items().len() - 1;
+        tui_data.note_list.select(Some(last_index));
         BrnTui::show_note_content_preview(tui_data, settings);
     }
 
