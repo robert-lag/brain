@@ -120,6 +120,7 @@ impl BrnTui {
                                 BrnTui::add_note(terminal, tui_data, settings);
                                 tui_data.input_mode = InputMode::Normal;
                                 tui_data.edit_text.clear();
+                                tui_data.note_name_cache.clear();
                             }
                         }
                         KeyCode::Char(c) => {
