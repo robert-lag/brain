@@ -1,6 +1,6 @@
 # Brain
 
-Brain is a commandline tool for the organisation of a zettelkasten or as some people call it: your second brain.
+Brain is a commandline tool for the organisation of a zettelkasten or as some people call it: **your second brain**.
 
 ![2022-02-03-131954](https://user-images.githubusercontent.com/61148783/152341690-98f3eea4-99dd-42b8-98c8-79d12f30b857.png)
 
@@ -19,6 +19,7 @@ More information about the zettelkasten method:
 
 ## Contents
 
+- [Features](#features)
 - [Installation](#installation)
     - [Pre-built binaries](#pre-built-binaries)
     - [Cargo](#cargo)
@@ -39,6 +40,16 @@ More information about the zettelkasten method:
     - [Search operators](#search-operators)
     - [Detailed description](#detailed-description)
 
+## Features
+
+Some of the most important features:
+
+- **Vim**-like-keybindings in TUI
+- **Automatic backlinking** of notes
+- **Powerful search** functionality
+- Notes are stored as simple **Markdown** files
+- Your **Favorite editor** can be used for editing notes
+- **Minimal** (non-bloated) software
 
 ## Installation
 
@@ -129,6 +140,8 @@ brn tui
 | `j`, `UpArrow`     | up                                                     |
 | `k`, `DownArrow`   | down                                                   |
 | `l`, `LeftArrow`   | open note                                              |
+| `g`                | go to the top of the note list                         |
+| `G`                | go to the bottom of the note list                      |
 | `h`                | show history of last visited notes                     |
 | `r`                | show a list of random notes                            |
 | `/`                | enter search mode                                      |    
