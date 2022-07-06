@@ -1,7 +1,10 @@
+use crate::database::Database;
 use crate::graph::graph_edge::GraphEdge;
 use crate::graph::graph_node::GraphNode;
 use crate::settings::Settings;
 
+use lazy_static::lazy_static;
+use regex::Regex;
 use std::io::{ BufReader, BufRead };
 use std::fs::{ self, File };
 use std::path::PathBuf;
@@ -9,10 +12,14 @@ use string_builder::Builder;
 use std::env;
 use std::process::Command;
 
+lazy_static! {
+    static ref JSON_VARIABLE_VALIDATOR: Regex = Regex::new(r#"^let elementsData( = [- A-Za-z0-9"'()<>\[\]\{\}.,´`:]+)?;$"#).unwrap();
+}
+
 pub struct Graph;
 impl Graph {
     pub fn generate(settings: &mut Settings) -> Result<(), String> {
-        let json_string = Graph::get_json_of_notes(settings).unwrap();
+        let json_string = Graph::get_json_of_notes().unwrap();
 
         let zettelkasten_dir = &settings.zettelkasten_dir;
         let graph_generator_file_path = PathBuf::from(zettelkasten_dir).join("graph.js");
@@ -34,22 +41,27 @@ impl Graph {
         return Ok(());
     }
 
-    fn get_json_of_notes(settings: &mut Settings) -> Result<String, String> {
-        let mut vec = Vec::new();
-        for i in 1..=10 {
-            let id = i.to_string();
-            let node = GraphNode::from(&id);
-            vec.push(r#"{ "data": "#.to_string() + &serde_json::to_string(&node).unwrap() + " }");
-        }
-        for i in 1..=10 {
-            let id = "e".to_string() + &i.to_string();
-            let edge = GraphEdge::from(&id, "1", "4");
-            vec.push(r#"{ "data": "#.to_string() + &serde_json::to_string(&edge).unwrap() + " }");
+    fn get_json_of_notes() -> Result<String, String> {
+        let mut graph_vector = Vec::new();
+        let all_note_ids = Database::get_all_note_ids();
+        for note_id in all_note_ids {
+            if let Some(note) = Database::get_note_where_id(&note_id) {
+                let node = GraphNode::from(&note_id, &note.note_name);
+                graph_vector.push(r#"{ "data": "#.to_string() + &serde_json::to_string(&node).unwrap() + " }");
+            } else {
+                println!("failed");
+            }
         }
 
-        let json_string = "[ ".to_string() + &vec.join(", ") + " ]";
-        println!("JSON: {}", json_string);
-        return Ok(json_string);
+        let all_note_links = Database::get_all_note_links();
+        for note_link in all_note_links {
+            let edge_id = format!("{}->{}", &note_link.source_note_id, &note_link.target_note_id);
+            let edge = GraphEdge::from(&edge_id, &note_link.source_note_id, &note_link.target_note_id);
+            graph_vector.push(r#"{ "data":"#.to_string() + &serde_json::to_string(&edge).unwrap() + " }");
+        }
+
+        let graph_json = "[ ".to_string() + &graph_vector.join(", ") + " ]";
+        return Ok(graph_json);
     }
 
     fn insert_json_in_file_content(file: File, json_string: &str) -> String {
@@ -63,7 +75,7 @@ impl Graph {
                 new_content_builder.append("\n");
             }
 
-            if line == "let elementsData;" {
+            if JSON_VARIABLE_VALIDATOR.is_match(&line) {
                 new_content_builder.append("let elementsData = JSON.parse(`".to_string() + json_string + "`);");
             } else {
                 new_content_builder.append(line);

@@ -1,5 +1,6 @@
 use crate::message::Message;
 use crate::note::Note;
+use crate::note_link::NoteLink;
 use crate::note_property::NoteProperty;
 use crate::note_tagging::NoteTagging;
 
@@ -46,6 +47,16 @@ impl Database {
                     REFERENCES tag (tag_name)
             );
 
+            CREATE TABLE IF NOT EXISTS note_link (
+                note_id varchar(20) NOT NULL,
+                note_link_id varchar(200) NOT NULL,
+                PRIMARY KEY (note_id, note_link_id),
+                FOREIGN KEY (note_id)
+                    REFERENCES note (note_id),
+                FOREIGN KEY (note_link_id)
+                    REFERENCES note (note_id)
+            );
+
             COMMIT TRANSACTION;
         ").unwrap();
     }
@@ -88,6 +99,38 @@ impl Database {
         } else {
             return false;
         }
+    }
+
+    pub fn get_all_note_ids() -> Vec<String> {
+        let conn = Database::get_connection();
+
+        let mut select_statement = match conn.prepare(
+            "SELECT note_id
+             FROM note"
+        ) {
+            Ok(query_result) => query_result,
+            Err(error) => {
+                Message::error(&error.to_string());
+                return Vec::new();
+            }
+        };
+
+        let rows = match select_statement.query_map(
+            [], |row| row.get(0)
+        ) {
+            Ok(query_result) => query_result,
+            Err(error) => {
+                Message::error(&error.to_string());
+                return Vec::new();
+            }
+        };
+
+        // Convert rows to string vector
+        let mut row_vector = Vec::new();
+        for row in rows {
+            row_vector.push(row.unwrap());
+        }
+        return row_vector;
     }
 
     pub fn get_random_note_ids(amount: usize) -> Vec<String> {
@@ -192,6 +235,36 @@ impl Database {
 
         let rows = Database::get_rows_of_prepared_query(select_statement, &count.to_string());
         return rows;
+    }
+
+    pub fn get_all_note_links() -> Vec<NoteLink> {
+        let conn = Database::get_connection();
+
+        let mut select_statement = match conn.prepare(
+            "SELECT note_id, note_link_id
+             FROM note_link"
+        ) {
+            Ok(query_result) => query_result,
+            Err(error) => {
+                Message::error(&error.to_string());
+                return Vec::new();
+            }
+        };
+
+        let mut rows = match select_statement.query([]) {
+            Ok(query_result) => query_result,
+            Err(error) => {
+                Message::error(&error.to_string());
+                return Vec::new();
+            }
+        };
+
+        // Convert rows to string vector
+        let mut row_vector = Vec::new();
+        while let Ok(Some(row)) = rows.next() {
+            row_vector.push(NoteLink::new(row.get(0).unwrap(), row.get(1).unwrap()));
+        }
+        return row_vector;
     }
 
     pub fn get_tags_of_note(note_id: &str) -> Vec<String> {
@@ -402,6 +475,65 @@ impl Database {
                     }
                 };
             };
+        }
+    }
+
+    pub fn insert_note_link_for_note(note_id: &str, note_link_id: &str) -> Result<(), String> {
+        let conn = Database::get_connection();
+
+        if Database::get_note_where_id(note_id).is_none() {
+            return Err(format!("insert-note-link: the note with the id '{}' wasn't found",
+                        note_id));
+        }
+
+        if Database::get_note_where_id(note_link_id).is_none() {
+            return Err(format!("insert-note-link: the note with the id '{}' wasn't found",
+                        note_link_id));
+        }
+
+        return insert_note_link(&conn, note_id, note_link_id);
+
+        fn insert_note_link(conn: &Connection, note_id: &str, note_link_id: &str) -> Result<(), String> {
+            let note_link_in_db: Option<String> = match conn.query_row(
+                "SELECT note_id
+                 FROM note_link
+                 WHERE note_id = :note_id AND note_link_id = :note_link_id",
+                named_params!{
+                    ":note_id": note_id,
+                    ":note_link_id": note_link_id
+                },
+                |row| row.get(0)
+            ) {
+                Ok(query_result) => query_result,
+                Err(error) => {
+                    if error == Error::QueryReturnedNoRows {
+                        None
+                    }
+                    else {
+                        return Err(format!("insert-note-link: {}", &error.to_string()));
+                    }
+                }
+            };
+
+            let note_link_exists_already = note_link_in_db.is_some();
+
+            if !note_link_exists_already {
+                match conn.execute(
+                    "INSERT INTO note_link (note_id, note_link_id)
+                     VALUES (:note_id, :note_link_id)",
+                    named_params!{
+                         ":note_id": note_id,
+                         ":note_link_id": note_link_id
+                    }
+                ) {
+                    Ok(_) => {  }
+                    Err(error) => {
+                        return Err(format!("insert-note-link: {}", &error.to_string()));
+                    }
+                };
+            };
+
+            return Ok(());
         }
     }
 

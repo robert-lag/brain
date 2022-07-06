@@ -6,6 +6,7 @@ mod file_utility;
 mod graph;
 mod history;
 mod message;
+mod note_link;
 mod note_metadata;
 mod note_property;
 mod note_tagging;
@@ -226,7 +227,6 @@ fn copy_directory_to_zettelkasten_dir(directory: &Dir, zettelkasten_dir_path: &P
             }
         };
     }
-
 }
 
 fn exec_tui_command(_matches: &ArgMatches, settings: &mut Settings) {

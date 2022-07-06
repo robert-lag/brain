@@ -26,7 +26,7 @@ let cy = window.cy = cytoscape({
             'height': 20,
             'width': 20,
             'background-color': '#CCCCCC',
-            'content': 'data(id)',
+            'content': 'data(label)',
             'text-valign': 'center',
             'text-halign': 'center'
         }

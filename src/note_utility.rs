@@ -329,7 +329,7 @@ impl NoteUtility {
 
         let directory_entries = fs::read_dir(&settings.notes_dir).unwrap();
 
-
+        settings.show_interactive_dialogs = false;
         for entry in directory_entries {
             let path = entry.unwrap().path();
             if path.is_dir() {
@@ -344,10 +344,22 @@ impl NoteUtility {
 
             let absolute_note_file_path = PathBuf::from(&settings.notes_dir).join(&file_name);
             let _ = match NoteMetadata::get_basic_data_of_file(&absolute_note_file_path) {
-                Ok(note_metadata) => Database::insert_note(&note_metadata),
+                Ok(note_metadata) => {
+                    Database::insert_note(&note_metadata);
+                    NoteUtility::check_links_in_note(&note_metadata, settings);
+
+                    match NoteUtility::check_metadata_of(&note_metadata, settings) {
+                        Ok(None) => (),
+                        Ok(Some(message)) => Message::warning(&message),
+                        Err(error) => Message::error(&format!("check_yaml_header_of: {}", error)),
+                    };
+                },
                 Err(error) => return Err(error),
             };
+
+
         }
+        settings.show_interactive_dialogs = true;
         return Ok(());
     }
 
@@ -426,9 +438,8 @@ impl NoteUtility {
         if let Err(error) = settings.note_history.add(note_id) {
             return Err(error);
         }
-        if settings.backlinking_enabled {
-            NoteUtility::create_backlinks_by_searching(&note, settings);
-        }
+
+        NoteUtility::check_links_in_note(&note, settings);
 
         match NoteUtility::check_metadata_of(&note, settings) {
             Ok(None) => return Ok(None),
@@ -457,33 +468,54 @@ impl NoteUtility {
         return Ok(absolute_file_path.as_os_str().to_os_string());
     }
 
-    fn create_backlinks_by_searching(note: &Note, settings: &Settings) {
+    fn check_links_in_note(note: &Note, settings: &Settings) {
+        if let Some(note_links) = NoteUtility::get_all_links_in_note(&note, settings) {
+            if settings.backlinking_enabled {
+                NoteUtility::create_backlinks_from(&note_links, &note, settings);
+            }
+            for note_link_id in note_links {
+                if let Err(error) = Database::insert_note_link_for_note(&note.note_id, &note_link_id) {
+                    Message::warning(&error);
+                }
+            }
+        }
+    }
+
+    fn get_all_links_in_note(note: &Note, settings: &Settings) -> Option<Vec<String>> {
         let absolute_note_file_path = PathBuf::from(&settings.notes_dir).join(&note.file_name);
         let note_content = match FileUtility::get_content_from_file(&absolute_note_file_path) {
             Ok(value) => value,
             Err(error) => {
-                Message::error(&format!("create_backlinks: couldn't read content of note '{} {}': {}",
+                Message::error(&format!("get-all-links-in-note: couldn't read content of note '{} {}': {}",
                     note.note_id.yellow(),
                     note.note_name,
                     error));
-                return;
+                return None;
             }
         };
 
         if let Some(note_format_match) = NOTE_FORMAT_VALIDATOR.captures(&note_content) {
             let note_body = note_format_match.get(3).unwrap().as_str();
+            let mut note_links = Vec::new();
             for note_link_match in NOTE_LINK_VALIDATOR.captures_iter(note_body) {
                 let linked_note_id = note_link_match.get(1).unwrap().as_str();
-                if let Some(linked_note) = Database::get_note_where_id(linked_note_id) {
-                    NoteUtility::add_backlink_to(&linked_note, &note.note_id, settings)
-                }
+                note_links.push(linked_note_id.to_string());
             }
+            return Some(note_links);
         } else {
-            Message::error(&format!("create_backlinks: couldn't search for links in '{} {}': note does not have the correct format",
+            Message::warning(&format!("get-all-links-in-note: couldn't search for links in '{} {}': note does not have the correct format",
                 note.note_id.yellow(),
                 note.note_name));
             Message::display_correct_note_format();
-            return;
+            return None;
+        }
+    }
+
+    fn create_backlinks_from(note_links: &Vec<String>, source_note: &Note, settings: &Settings) {
+        for linked_note_id in note_links {
+            if let Some(linked_note) = Database::get_note_where_id(&linked_note_id) {
+                NoteUtility::add_backlink_to(&linked_note, &source_note.note_id, settings)
+            }
         }
     }
 
@@ -564,6 +596,10 @@ impl NoteUtility {
     }
     
     fn show_open_file_dialog_for(note_id: &str, settings: &mut Settings) {
+        if !settings.show_interactive_dialogs {
+            return;
+        }
+
         print!("Do you want to open the file again? [Y/n] ");
         io::stdout().flush().unwrap();
 
