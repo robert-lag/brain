@@ -1,20 +1,22 @@
+mod brn_tui;
 mod collection_tool;
 mod database;
 mod directory;
 mod file_utility;
+mod graph;
 mod history;
 mod message;
+mod note_metadata;
 mod note_property;
 mod note_tagging;
 mod note_type;
 mod note_utility;
 mod note;
 mod settings;
-mod brn_tui;
-mod note_metadata;
 
 use database::Database;
 use directory::Directory;
+use graph::main::Graph;
 use message::Message;
 use note_property::NoteProperty;
 use note_type::NoteType;
@@ -22,6 +24,7 @@ use note_utility::NoteUtility;
 use settings::Settings;
 use brn_tui::main::BrnTui;
 
+use include_dir::{include_dir, Dir};
 use clap::{ Arg, App, SubCommand, AppSettings, ArgMatches, crate_name, crate_version };
 use std::env;
 use std::ffi::OsStr;
@@ -127,6 +130,9 @@ fn main() {
                 .required(true)
             )
         )
+        .subcommand(SubCommand::with_name("graph")
+            .about("Shows a graph virtualization of the zettelkasten in the browser.")
+        )
         .get_matches();
 
     let notes_dir = matches.value_of_os("directory").unwrap_or(OsStr::new("./")).to_os_string();
@@ -155,6 +161,7 @@ fn main() {
         ("update-db", Some(update_db_matches)) => exec_update_db_command(&update_db_matches, &mut settings),
         ("get-name", Some(get_name_matches)) => exec_get_name_command(&get_name_matches, &mut settings),
         ("get-file-name", Some(get_file_name_matches)) => exec_get_file_name_command(&get_file_name_matches, &mut settings),
+        ("graph", Some(graph_matches)) => exec_graph_command(&graph_matches, &mut settings),
         _ => (),
     }
 }
@@ -186,18 +193,40 @@ fn initialize_zettelkasten(directory: &OsStr) {
         }
     };
 
-    let note_template_content = include_str!("note-template.md");
-    let note_template_path = zettelkasten_dir_path.join("note-template.md");
-    match fs::write(&note_template_path, note_template_content) {
-        Ok(_) => {  },
-        Err(error) => {
-            Message::error(&format!("failed to create a note-template file in {}: {}",
-                &note_template_path.to_string_lossy(), error));
-            return;
-        }
-    };
+    let zettelkasten_dir_files = include_dir!("src/for_zettelkasten_dir");
+    copy_directory_to_zettelkasten_dir(&zettelkasten_dir_files, &zettelkasten_dir_path, false);
+
 
     Database::init();
+}
+
+fn copy_directory_to_zettelkasten_dir(directory: &Dir, zettelkasten_dir_path: &Path, create_directory: bool) {
+    if create_directory {
+        if let Err(error) = fs::create_dir(&zettelkasten_dir_path.join(directory.path())) {
+            Message::error(&format!("problem creating the directory '{}': {}",
+                &zettelkasten_dir_path.display(),
+                error));
+            return;
+        }
+    }
+
+    for subdirectory in directory.dirs() {
+        copy_directory_to_zettelkasten_dir(&subdirectory, zettelkasten_dir_path, true);
+    }
+
+    for file in directory.files() {
+        let new_file_path = zettelkasten_dir_path.join(&file.path());
+        let file_content = file.contents_utf8().unwrap();
+        match fs::write(&new_file_path, file_content) {
+            Ok(_) => {  },
+            Err(error) => {
+                Message::error(&format!("failed to create file in {}: {}",
+                    &new_file_path.to_string_lossy(), error));
+                return;
+            }
+        };
+    }
+
 }
 
 fn exec_tui_command(_matches: &ArgMatches, settings: &mut Settings) {
@@ -334,4 +363,18 @@ fn exec_get_file_name_command(matches: &ArgMatches, settings: &mut Settings) {
     
     let note_id = matches.value_of("id").unwrap_or_default();
     NoteUtility::print_file_name_of(note_id);
+}
+
+fn exec_graph_command(_matches: &ArgMatches, settings: &mut Settings) {
+    if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
+        return;
+    }
+
+    if let Err(error) = Graph::generate(settings) {
+        Message::error(&error);
+    } else {
+        if let Err(error) = Graph::show(settings) {
+            Message::error(&error);
+        }
+    }
 }
