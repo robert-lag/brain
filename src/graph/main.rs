@@ -1,6 +1,7 @@
 use crate::database::Database;
 use crate::graph::graph_edge::GraphEdge;
 use crate::graph::graph_node::GraphNode;
+use crate::message::Message;
 use crate::settings::Settings;
 
 use lazy_static::lazy_static;
@@ -13,7 +14,7 @@ use std::env;
 use std::process::Command;
 
 lazy_static! {
-    static ref JSON_VARIABLE_VALIDATOR: Regex = Regex::new(r#"^let elementsData( = [- A-Za-z0-9"'()<>\[\]\{\}.,´`:]+)?;$"#).unwrap();
+    static ref JSON_VARIABLE_VALIDATOR: Regex = Regex::new(r#"^let elementsData( = [- A-Za-z0-9"'()<>\[\]\{\}.,´`:/\\?!]+)?;$"#).unwrap();
 }
 
 pub struct Graph;
@@ -30,7 +31,11 @@ impl Graph {
                                     error))
         };
 
-        let new_content = Graph::insert_json_in_file_content(file, &json_string);
+        let new_content = match Graph::insert_json_in_file_content(file, &json_string) {
+            Ok(result) => result,
+            Err(error) => return Err(error)
+        };
+
         match fs::write(&graph_generator_file_path, new_content) {
             Ok(_) => {  },
             Err(error) => return Err(format!("failed to create file {}: {}",
@@ -49,7 +54,7 @@ impl Graph {
                 let node = GraphNode::from(&note_id, &note.note_name);
                 graph_vector.push(r#"{ "data": "#.to_string() + &serde_json::to_string(&node).unwrap() + " }");
             } else {
-                println!("failed");
+                Message::warning(&format!("note '{}' not found. skipped", &note_id));
             }
         }
 
@@ -64,11 +69,12 @@ impl Graph {
         return Ok(graph_json);
     }
 
-    fn insert_json_in_file_content(file: File, json_string: &str) -> String {
+    fn insert_json_in_file_content(file: File, json_string: &str) -> Result<String, String> {
         let reader = BufReader::new(file);
 
         let mut new_content_builder = Builder::default();
         let mut first_iteration = true;
+        let mut found_json_variable = false;
         for line in reader.lines() {
             let line = line.unwrap();
             if !first_iteration {
@@ -77,6 +83,7 @@ impl Graph {
 
             if JSON_VARIABLE_VALIDATOR.is_match(&line) {
                 new_content_builder.append("let elementsData = JSON.parse(`".to_string() + json_string + "`);");
+                found_json_variable = true;
             } else {
                 new_content_builder.append(line);
             }
@@ -84,7 +91,12 @@ impl Graph {
             first_iteration = false;
         }
 
-        return new_content_builder.string().unwrap();
+
+        if found_json_variable {
+            return Ok(new_content_builder.string().unwrap());
+        } else {
+            return Err("generate-graph: couldn't insert json in file".to_string());
+        }
     }
 
     pub fn show(settings: &mut Settings) -> Result<(), String> {

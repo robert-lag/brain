@@ -295,6 +295,7 @@ impl NoteUtility {
         let note_file_path = Path::new(notes_dir).join(note.file_name);
 
         NoteUtility::delete_tags_of_note(&note_id);
+        Database::delete_all_links_with_note(&note_id);
         Database::delete_note(&note_id);
 
         match fs::remove_file(&note_file_path){
@@ -325,11 +326,66 @@ impl NoteUtility {
         if !cleared_successfully {
             return Err(format!("update-db: Database couldn't be cleared!"));
         }
-        Database::init();
 
-        let directory_entries = fs::read_dir(&settings.notes_dir).unwrap();
+        println!("(1/4) Create Database...");
+        Database::init();
+        println!("(1/4) Create Database: Done");
+
+        println!("(2/4) Get all notes in directory...");
+        let note_metadata_list = match NoteUtility::get_all_note_metadata(settings) {
+            Ok(result) => result,
+            Err(error) => return Err(error)
+        };
+        println!("(2/4) Get all notes in directory: Done");
 
         settings.show_interactive_dialogs = false;
+
+        // First insert all notes before inserting tags and links
+        // as they depend on notes
+        let mut counter = 0;
+        let mut former_percentage = 0;
+        println!("(3/4) Update notes...");
+        for note_metadata in &note_metadata_list {
+            Database::insert_note(&note_metadata);
+
+            counter += 1;
+            let completion_percentage = ((counter as f32) / (note_metadata_list.len() as f32) * 100.) as usize;
+            if completion_percentage - former_percentage >= 5 {
+                println!("(3/4) Update notes: {}%", completion_percentage);
+                former_percentage = completion_percentage;
+            }
+        }
+        println!("(3/4) Update notes: Done");
+
+        counter = 0;
+        former_percentage = 0;
+        println!("(4/4) Update note links and tags...");
+        for note_metadata in &note_metadata_list {
+            NoteUtility::check_links_in_note(&note_metadata, settings);
+
+            counter += 1;
+            match NoteUtility::check_metadata_of(&note_metadata, settings) {
+                Ok(None) => (),
+                Ok(Some(message)) => Message::warning(&message),
+                Err(error) => Message::error(&format!("check_yaml_header_of: {}", error)),
+            };
+
+            let completion_percentage = ((counter as f32) / (note_metadata_list.len() as f32) * 100.) as usize;
+            if completion_percentage - former_percentage >= 5 {
+                println!("(4/4) Update note links and tags: {}%", completion_percentage);
+                former_percentage = completion_percentage;
+            }
+        }
+        println!("(4/4) Update note links and tags: Done");
+
+        settings.show_interactive_dialogs = true;
+        return Ok(());
+    }
+
+    fn get_all_note_metadata(settings: &mut Settings) -> Result<Vec<Note>, String> {
+        let directory_entries = fs::read_dir(&settings.notes_dir).unwrap();
+        let mut note_metadata_list: Vec<Note> = Vec::new();
+
         for entry in directory_entries {
             let path = entry.unwrap().path();
             if path.is_dir() {
@@ -345,22 +401,13 @@ impl NoteUtility {
             let absolute_note_file_path = PathBuf::from(&settings.notes_dir).join(&file_name);
             let _ = match NoteMetadata::get_basic_data_of_file(&absolute_note_file_path) {
                 Ok(note_metadata) => {
-                    Database::insert_note(&note_metadata);
-                    NoteUtility::check_links_in_note(&note_metadata, settings);
-
-                    match NoteUtility::check_metadata_of(&note_metadata, settings) {
-                        Ok(None) => (),
-                        Ok(Some(message)) => Message::warning(&message),
-                        Err(error) => Message::error(&format!("check_yaml_header_of: {}", error)),
-                    };
+                    note_metadata_list.push(note_metadata);
                 },
                 Err(error) => return Err(error),
             };
-
-
         }
-        settings.show_interactive_dialogs = true;
-        return Ok(());
+
+        return Ok(note_metadata_list);
     }
 
     pub fn get_content_of_note(note_id: &str, settings: &mut Settings) -> Result<String, String> {

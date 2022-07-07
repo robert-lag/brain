@@ -487,8 +487,8 @@ impl Database {
         }
 
         if Database::get_note_where_id(note_link_id).is_none() {
-            return Err(format!("insert-note-link: the note with the id '{}' wasn't found",
-                        note_link_id));
+            return Err(format!("insert-note-link: the note with the id '{}' wasn't found. it cannot be linked from note '{}'",
+                        note_link_id, note_id));
         }
 
         return insert_note_link(&conn, note_id, note_link_id);
@@ -587,6 +587,24 @@ impl Database {
             Ok(_) => {  }
             Err(error) => {
                 Message::error(&format!("delete-note-tagging: {}", &error.to_string()));
+                return;
+            }
+        };
+    }
+
+    pub fn delete_all_links_with_note(note_id: &str) {
+        let conn = Database::get_connection();
+
+        match conn.execute(
+            "DELETE FROM note_link
+             WHERE note_id = :note_id OR note_link_id = :note_id",
+            named_params!{
+                ":note_id": note_id
+            }
+        ) {
+            Ok(_) => {  }
+            Err(error) => {
+                Message::error(&format!("delete-note-link: {}", &error.to_string()));
                 return;
             }
         };

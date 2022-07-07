@@ -25,20 +25,22 @@ let cy = window.cy = cytoscape({
         style: {
             'height': 20,
             'width': 20,
-            'background-color': '#CCCCCC',
+            'background-color': '#969696',
+            'color': '#707070',
             'content': 'data(label)',
-            'text-valign': 'center',
-            'text-halign': 'center'
+            'text-opacity': 0.5,
+            'text-valign': 'bottom',
+            'text-halign': 'center',
+            'font-size': '8px'
         }
         },
         {
         selector: 'edge',
         style: {
-            'curve-style': 'haystack',
-            'haystack-radius': 0,
+            'curve-style': 'straight',
             'width': 5,
             'opacity': 0.5,
-            'line-color': '#dd0000'
+            'line-color': '#383838'
         }
         }
     ],
