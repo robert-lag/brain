@@ -6,12 +6,13 @@ use crate::settings::Settings;
 
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::collections::HashMap;
+use std::env;
 use std::io::{ BufReader, BufRead };
 use std::fs::{ self, File };
 use std::path::PathBuf;
-use string_builder::Builder;
-use std::env;
 use std::process::Command;
+use string_builder::Builder;
 
 lazy_static! {
     static ref JSON_VARIABLE_VALIDATOR: Regex = Regex::new(r#"^let elementsData( = [- A-Za-z0-9"'()<>\[\]\{\}.,´`:/\\?!]+)?;$"#).unwrap();
@@ -48,22 +49,35 @@ impl Graph {
 
     fn get_json_of_notes() -> Result<String, String> {
         let mut graph_vector = Vec::new();
+        let mut number_of_neighbors: HashMap<String, usize> = HashMap::new();
+
+        // Edges
+        let all_note_links = Database::get_all_note_links();
+        for note_link in all_note_links {
+            let edge_id = format!("{}->{}", &note_link.source_note_id, &note_link.target_note_id);
+            let edge = GraphEdge::from(&edge_id, &note_link.source_note_id, &note_link.target_note_id);
+            graph_vector.push(r#"{ "data":"#.to_string() + &serde_json::to_string(&edge).unwrap() + " }");
+
+            *number_of_neighbors.entry(note_link.source_note_id).or_default() += 1;
+            *number_of_neighbors.entry(note_link.target_note_id).or_default() += 1;
+        }
+
+        // Nodes
         let all_note_ids = Database::get_all_note_ids();
         for note_id in all_note_ids {
             if let Some(note) = Database::get_note_where_id(&note_id) {
-                let node = GraphNode::from(&note_id, &note.note_name);
+                let node_weight = match number_of_neighbors.get(&note_id) {
+                    Some(result) => result,
+                    None => &0,
+                };
+
+                let node = GraphNode::from(&note_id, &note.note_name, *node_weight);
                 graph_vector.push(r#"{ "data": "#.to_string() + &serde_json::to_string(&node).unwrap() + " }");
             } else {
                 Message::warning(&format!("note '{}' not found. skipped", &note_id));
             }
         }
 
-        let all_note_links = Database::get_all_note_links();
-        for note_link in all_note_links {
-            let edge_id = format!("{}->{}", &note_link.source_note_id, &note_link.target_note_id);
-            let edge = GraphEdge::from(&edge_id, &note_link.source_note_id, &note_link.target_note_id);
-            graph_vector.push(r#"{ "data":"#.to_string() + &serde_json::to_string(&edge).unwrap() + " }");
-        }
 
         let graph_json = "[ ".to_string() + &graph_vector.join(", ") + " ]";
         return Ok(graph_json);
