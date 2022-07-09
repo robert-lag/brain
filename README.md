@@ -136,9 +136,15 @@ brn graph
 
 This will open a graph in the browser specified by the `BROWSER` environment variable.
 
+![graph-view](https://user-images.githubusercontent.com/61148783/178108696-311f347d-08c9-4ada-acb8-b312b1f28ab0.png)
+
 By clicking on a graph node you can see the name of the note the graph node represents.
 
+![graph-view-node-selection](https://user-images.githubusercontent.com/61148783/178109252-b787c6f4-4c7d-49a9-9d87-9d3d67986f13.png)
+
 It's also possible to select multiple nodes by pressing `Shift` and selecting nodes. This can be done either by pressing the nodes one by one or by using box selection (while pressing `Shift`).
+
+![graph-view-multiple-selections](https://user-images.githubusercontent.com/61148783/178109250-ac7669de-4278-4260-98bb-783440857357.png)
 
 ### TUI mode
 
