@@ -27,6 +27,7 @@ More information about the zettelkasten method:
     - [Creating a new zettelkasten](#creating-a-new-zettelkasten)
     - [Adding notes](#adding-notes)
     - [Listing created notes](#listing-created-notes)
+    - [Graph View](#graph-view)
     - [TUI Mode](#tui-mode)
         - [Keybindings in TUI Mode](#keybindings-in-tui-mode)
 - [Note types](#note-types)
@@ -50,6 +51,7 @@ Some of the most important features:
 - Notes are stored as simple **Markdown** files
 - Your **Favorite editor** can be used for editing notes
 - **Minimal** (non-bloated) software
+- A **Graph View** you can view in your browser
 
 ## Installation
 
@@ -123,6 +125,20 @@ You can open a note either in the TUI mode or on the commandline:
 ~~~
 brn open <note-id>
 ~~~
+
+### Graph View
+
+To view a graphical representation of the zettelkasten type:
+
+~~~
+brn graph
+~~~
+
+This will open a graph in the browser specified by the `BROWSER` environment variable.
+
+By clicking on a graph node you can see the name of the note the graph node represents.
+
+It's also possible to select multiple nodes by pressing `Shift` and selecting nodes. This can be done either by pressing the nodes one by one or by using box selection (while pressing `Shift`).
 
 ### TUI mode
 
