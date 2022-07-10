@@ -76,7 +76,10 @@ lazy_static! {
         )
     "##).unwrap();
     static ref NOTE_NAME_VALIDATOR: Regex = Regex::new(r##"(?x)
-        ^[\s\(\)\[\]\-a-zA-Z0-9*+\\"'´`_.:,;<>]*$
+        ^[^!?$%§&/=\{\}+*\#|~^@]*$
+    "##).unwrap();
+    static ref TAG_NAME_VALIDATOR: Regex = Regex::new(r##"(?x)
+        ^[^!?$%§&/=\{\}+*\|~^@]*$
     "##).unwrap();
     static ref WHITESPACE_VALIDATOR: Regex = Regex::new(r"^\s*$").unwrap();
 }
@@ -209,7 +212,7 @@ impl NoteUtility {
     pub fn add(note_name: &str, note_type: NoteType, settings: &mut Settings) -> Result<Option<String>, String> {
         let template_path = Path::new(&settings.zettelkasten_dir).join("note-template.md");
         if !template_path.exists() {
-            return Err(format!("the note template couldn't be found at '{}'",
+            return Err(format!("add_note: the note template couldn't be found at '{}'",
                 template_path.to_string_lossy()));
         }
 
@@ -702,6 +705,7 @@ impl NoteUtility {
     }
 
     fn check_metadata_of(note: &Note, settings: &mut Settings) -> Result<Option<String>, String> {
+        let mut warning_message = String::new();
         let note_name = match NoteMetadata::get_property_of(note, NoteProperty::NoteName, settings) {
             Ok(value) => value,
             Err(error) => return Err(error),
@@ -711,25 +715,35 @@ impl NoteUtility {
             Err(error) => return Err(error),
         };
 
-        if let Err(error) = NoteUtility::check_metadata_name_of(&note.note_id, note_name, &note.note_name, settings) {
-            return Ok(Some(error));
+
+        match NoteUtility::check_metadata_name_of(&note.note_id, note_name, &note.note_name, settings) {
+            Err(error) => return Err(error),
+            Ok(Some(warning)) => warning_message = warning,
+            Ok(None) => (),
         }
 
-        if let Err(error) = NoteUtility::check_metadata_tags_of(&note.note_id, tags, settings) {
-            return Ok(Some(error));
+        match NoteUtility::check_metadata_tags_of(&note.note_id, tags, settings) {
+            Err(error) => return Err(error),
+            Ok(Some(warning)) => warning_message = warning,
+            Ok(None) => (),
         }
 
-        return Ok(None);
+        if warning_message == "" {
+            return Ok(None);
+        } else {
+            return Ok(Some(warning_message));
+        }
     }
 
-    fn check_metadata_name_of(note_id: &str, note_name: Option<String>, original_note_name: &str, settings: &mut Settings) -> Result<(), String> {
+    fn check_metadata_name_of(note_id: &str, note_name: Option<String>, original_note_name: &str, settings: &mut Settings) -> Result<Option<String>, String> {
         match note_name {
             Some(new_note_name) => {
                 if WHITESPACE_VALIDATOR.is_match(&new_note_name) {
                     if settings.print_to_stdout {
                         show_missing_note_name_warning_for(note_id, settings);
                     }
-                    return Err(format!("the note '{}' doesn't have a name! please add a value after the 'name' property to the yaml header!", note_id));
+                    return Err(format!("the note '{}' doesn't have a name! please add a value after the 'name' property to the yaml header!",
+                                    note_id));
                 } else if new_note_name != original_note_name {
                     Database::update_note_name_where(&new_note_name, NoteProperty::NoteId, note_id);
                 }
@@ -738,11 +752,12 @@ impl NoteUtility {
                 if settings.print_to_stdout {
                     show_missing_note_name_warning_for(note_id, settings);
                 }
-                return Err(format!("the note '{}' doesn't have a name! please add a value after the 'name' property to the yaml header!", note_id));
+                return Err(format!("the note '{}' doesn't have a name! please add a value after the 'name' property to the yaml header!",
+                                note_id));
             }
         }
 
-        return Ok(());
+        return Ok(None);
 
         fn show_missing_note_name_warning_for(note_id: &str, settings: &mut Settings) {
             Message::error("this note doesn't have a name! please add a value after the 'name' property to the yaml header!");
@@ -757,7 +772,7 @@ impl NoteUtility {
         }
     }
 
-    fn check_metadata_tags_of(note_id: &str, tags: Option<Vec<String>>, settings: &mut Settings) -> Result<(), String> {
+    fn check_metadata_tags_of(note_id: &str, tags: Option<Vec<String>>, settings: &mut Settings) -> Result<Option<String>, String> {
         NoteUtility::delete_tags_of_note(note_id);
 
         match tags {
@@ -766,22 +781,26 @@ impl NoteUtility {
                     if settings.print_to_stdout {
                         show_missing_tags_warning_for(note_id, settings);
                     }
-                    return Err(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id));
+                    return Ok(Some(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id)));
                 }
 
                 for tag in tags.iter() {
-                    Database::insert_tag_for_note(tag, note_id);
+                    if TAG_NAME_VALIDATOR.is_match(tag) {
+                        Database::insert_tag_for_note(tag, note_id);
+                    } else {
+                        return Err(format!("check_tags: the tag name '{}' contains illegal characters", tag));
+                    }
                 }
             }
             None => {
                 if settings.print_to_stdout {
                     show_missing_tags_warning_for(note_id, settings);
                 }
-                return Err(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id));
+                return Ok(Some(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id)));
             }
         }
 
-        return Ok(());
+        return Ok(None);
 
         fn show_missing_tags_warning_for(note_id: &str, settings: &mut Settings) {
             Message::warning(indoc! {"

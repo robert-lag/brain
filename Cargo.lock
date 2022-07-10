@@ -90,7 +90,7 @@ checksum = "0d8c1fef690941d3e7788d328517591fecc684c084084702d6ff1641e993699a"
 
 [[package]]
 name = "brn"
-version = "0.1.0"
+version = "2.2.1"
 dependencies = [
  "chrono",
  "clap",
