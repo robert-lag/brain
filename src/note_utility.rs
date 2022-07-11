@@ -124,18 +124,20 @@ impl NoteUtility {
             let mut individual_search_results = HashSet::new();
             let mut is_search_string_for_tag = false;
             let mut is_negated_search_string = false;
+            let mut search_string_chars = search_string.chars();
 
             loop {
-                if search_string.is_empty() {
-                    break;
-                }
+                let first_char = match search_string_chars.next() {
+                    Some(result) => result,
+                    None => break,
+                };
 
-                if &search_string[0..1] == "!" {
+                if first_char == '!' {
                     is_negated_search_string = true;
-                    search_string = &search_string[1..search_string.len()];
-                } else if &search_string[0..1] == "#" {
+                    search_string = search_string_chars.as_str();
+                } else if first_char == '#' {
                     is_search_string_for_tag = true;
-                    search_string = &search_string[1..search_string.len()];
+                    search_string = search_string_chars.as_str();
                 } else {
                     break;
                 }
