@@ -11,7 +11,7 @@ use crate::settings::Settings;
 
 use chrono::prelude::*;
 use colored::*;
-use indoc::indoc;
+use indoc::{ indoc, formatdoc };
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashSet;
@@ -782,8 +782,9 @@ impl NoteUtility {
                 if tags.len() == 0 {
                     if settings.print_to_stdout {
                         show_missing_tags_warning_for(note_id, settings);
+                    } else {
+                        return Ok(Some(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id)));
                     }
-                    return Ok(Some(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id)));
                 }
 
                 for tag in tags.iter() {
@@ -797,19 +798,19 @@ impl NoteUtility {
             None => {
                 if settings.print_to_stdout {
                     show_missing_tags_warning_for(note_id, settings);
+                } else {
+                    return Ok(Some(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id)));
                 }
-                return Ok(Some(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id)));
             }
         }
 
         return Ok(None);
 
         fn show_missing_tags_warning_for(note_id: &str, settings: &mut Settings) {
-            Message::warning(indoc! {"
-                this note doesn't have any tags! It will be difficult to find again!
+            Message::warning(&formatdoc! {"
+                the note '{}' doesn't have any tags! It will be difficult to find again!
                 please add a few appropriate tags!
-
-            "});
+            ", &note_id});
             Message::example(indoc! {r##"
                 ---
 
