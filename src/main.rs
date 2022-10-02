@@ -351,7 +351,7 @@ fn exec_get_name_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
-    
+
     let note_id = matches.value_of("id").unwrap_or_default();
     NoteUtility::print_note_name_of(note_id);
 }
@@ -360,7 +360,7 @@ fn exec_get_file_name_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
-    
+
     let note_id = matches.value_of("id").unwrap_or_default();
     NoteUtility::print_file_name_of(note_id);
 }

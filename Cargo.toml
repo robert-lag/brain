@@ -1,6 +1,6 @@
 [package]
 name = "brn"
-version = "2.3.1"
+version = "2.3.2"
 authors = ["Robert Lag <rob.lag@outlook.com"]
 edition = "2018"
 

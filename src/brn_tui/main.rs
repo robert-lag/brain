@@ -122,12 +122,12 @@ impl BrnTui {
                                 tui_data.edit_text.clear();
                                 tui_data.note_name_cache.clear();
                             }
-                        }
-                        KeyCode::Char(c) => {
-                            tui_data.edit_text.push(c);
                         },
                         KeyCode::Backspace => {
                             tui_data.edit_text.pop();
+                        },
+                        KeyCode::Char(c) => {
+                            tui_data.edit_text.push(c);
                         },
                         _ => (),
                     },
@@ -143,12 +143,12 @@ impl BrnTui {
                                 }
                             }
                             tui_data.input_mode = InputMode::Normal;
-                        }
-                        KeyCode::Char(c) => {
-                            tui_data.edit_text.push(c);
                         },
                         KeyCode::Backspace => {
                             tui_data.edit_text.pop();
+                        },
+                        KeyCode::Char(c) => {
+                            tui_data.edit_text.push(c);
                         },
                         _ => (),
                     },
@@ -158,12 +158,12 @@ impl BrnTui {
                             tui_data.input_mode = InputMode::Normal;
                             BrnTui::execute_search(tui_data, settings);
                             tui_data.note_list_title = tui_data.search_text.get_displayed_text();
-                        }
-                        KeyCode::Char(c) => {
-                            tui_data.search_text.push(c);
                         },
                         KeyCode::Backspace => {
                             tui_data.search_text.pop();
+                        },
+                        KeyCode::Char(c) => {
+                            tui_data.search_text.push(c);
                         },
                         _ => (),
                     },
@@ -193,7 +193,7 @@ impl BrnTui {
                 ].as_ref()
             )
             .split(vertical_chunks[0]);
-        
+
         BrnTui::render_note_list(f, horizontal_chunks[0], tui_data);
         BrnTui::render_note_preview(f, horizontal_chunks[1], tui_data);
         BrnTui::render_message_block(f, vertical_chunks[1].inner(&Margin {vertical: 0, horizontal: 1}), tui_data);
