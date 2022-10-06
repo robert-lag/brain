@@ -9,16 +9,13 @@ edition = "2018"
 [dependencies]
 clap = "~2.33"
 regex = "~1.4"
-walkdir = "~2.3"
 chrono = "~0.4"
 yaml-rust = "~0.4"
 colored = "~2.0"
 rusqlite = "~0.25"
-dirs = "~3.0"
 lazy_static = "~1.4"
 indoc = "~1.0"
-tui = { version = "~0.16.0", features = ['crossterm'] }
-termion = "~1.5.6"
+tui = { version = "~0.16.0", default-features=false, features = ['crossterm'] }
 crossterm = "~0.22.1"
 clipboard = "~0.5.0"
 serde = { version = "~1.0.137", features = ["derive"] }

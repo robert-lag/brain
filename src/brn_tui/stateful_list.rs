@@ -38,14 +38,14 @@ impl<T> StatefulList<T> {
         }
 
         if let Some(selected_index) = self.selected() {
-            return Some(&self.items[selected_index]);
+            Some(&self.items[selected_index])
         } else {
-            return None;
+            None
         }
     }
 
     pub fn next(&mut self) {
-        if self.items.len() == 0 {
+        if self.items.is_empty() {
             return;
         }
 
@@ -63,7 +63,7 @@ impl<T> StatefulList<T> {
     }
 
     pub fn previous(&mut self) {
-        if self.items.len() == 0 {
+        if self.items.is_empty() {
             return;
         }
 

@@ -15,17 +15,20 @@ pub struct Settings {
 impl Settings {
     pub fn init(notes_dir: OsString, zettelkasten_dir: OsString) -> Self {
         let mut settings = Settings {
-            notes_dir: notes_dir,
-            zettelkasten_dir: zettelkasten_dir,
+            notes_dir,
+            zettelkasten_dir,
             note_history: History::new(),
             backlinking_enabled: true,
             print_to_stdout: true,
             show_interactive_dialogs: true,
         };
 
-        if let Err(error) = settings.note_history.init(&settings.zettelkasten_dir.as_os_str()) {
+        if let Err(error) = settings
+            .note_history
+            .init(settings.zettelkasten_dir.as_os_str())
+        {
             Message::info(&("initializing history: ".to_string() + &error));
         }
-        return settings;
+        settings
     }
 }
