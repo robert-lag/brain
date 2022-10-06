@@ -9,7 +9,10 @@ impl Directory {
             return true;
         } else {
             if !hide_error_messages {
-                Message::error(&format!("the specified path is not zettelkasten directory: '{}'", directory.to_string_lossy()));
+                Message::error(&format!(
+                    "the specified path is not zettelkasten directory: '{}'",
+                    directory.to_string_lossy()
+                ));
                 Message::hint("use the 'init' subcommand to initialize a zettelkasten directory");
             }
             return false;

@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::fs::File;
-use std::io::{ Write, Read };
+use std::io::{Read, Write};
 use std::path::PathBuf;
 
 pub struct History {
@@ -46,7 +46,7 @@ impl History {
 
         let mut is_first_entry = true;
         for note_id in self.note_history.iter() {
-            let history_entry; 
+            let history_entry;
             if is_first_entry {
                 history_entry = note_id.to_string();
                 is_first_entry = false;
@@ -55,12 +55,13 @@ impl History {
             }
 
             if let Err(error) = history_file.write(&history_entry.as_bytes()) {
-                return Err(format!("save_note_history: couldn't write note id {} to history file: {}",
-                    note_id,
-                    error));
+                return Err(format!(
+                    "save_note_history: couldn't write note id {} to history file: {}",
+                    note_id, error
+                ));
             }
         }
-        
+
         return Ok(());
     }
 
@@ -77,8 +78,10 @@ impl History {
 
         let mut note_history_string = String::new();
         if let Err(error) = history_file.read_to_string(&mut note_history_string) {
-            return Err(format!("load_note_history: couldn't load note history: {}",
-                error));
+            return Err(format!(
+                "load_note_history: couldn't load note history: {}",
+                error
+            ));
         }
 
         self.note_history.clear();
@@ -93,9 +96,11 @@ impl History {
         let history_file = match File::create(&self.history_file_path) {
             Ok(value) => value,
             Err(error) => {
-                return Err(format!("save_note_history: couldn't access history file at '{}': {}",
+                return Err(format!(
+                    "save_note_history: couldn't access history file at '{}': {}",
                     self.history_file_path.to_string_lossy(),
-                    error));
+                    error
+                ));
             }
         };
 
