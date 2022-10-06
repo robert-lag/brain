@@ -6,8 +6,8 @@ use crate::note_tagging::NoteTagging;
 
 use chrono::prelude::*;
 use lazy_static::lazy_static;
-use rusqlite::{named_params, params, Connection, Error, Statement};
-use std::ffi::{OsStr, OsString};
+use rusqlite::{ Error, Connection, Statement, params, named_params };
+use std::ffi::{ OsString, OsStr };
 use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
@@ -21,8 +21,7 @@ impl Database {
     pub fn init() {
         let conn = Database::get_connection();
 
-        conn.execute_batch(
-            "
+        conn.execute_batch("
             BEGIN TRANSACTION;
 
             CREATE TABLE IF NOT EXISTS note (
@@ -59,9 +58,7 @@ impl Database {
             );
 
             COMMIT TRANSACTION;
-        ",
-        )
-        .unwrap();
+        ").unwrap();
     }
 
     pub fn clear() -> bool {
@@ -75,7 +72,7 @@ impl Database {
             Err(_) => return false,
         }
 
-        true
+        return true;
     }
 
     pub fn set_db_path(db_file_path: &OsStr) {
@@ -90,18 +87,17 @@ impl Database {
             conn.execute(
                 "INSERT INTO note (note_id, note_name, file_name, creation_date)
                 VALUES (:note_id, :note_name, :file_name, :creation_timestamp)",
-                named_params! {
+                named_params!{
                     ":note_id": note.note_id,
                     ":note_name": note.note_name,
                     ":file_name": note.file_name,
                     ":creation_timestamp": creation_timestamp
-                },
-            )
-            .unwrap();
+                }
+            ).unwrap();
 
-            true
+            return true;
         } else {
-            false
+            return false;
         }
     }
 
@@ -110,7 +106,7 @@ impl Database {
 
         let mut select_statement = match conn.prepare(
             "SELECT note_id
-             FROM note",
+             FROM note"
         ) {
             Ok(query_result) => query_result,
             Err(error) => {
@@ -119,7 +115,9 @@ impl Database {
             }
         };
 
-        let rows = match select_statement.query_map([], |row| row.get(0)) {
+        let rows = match select_statement.query_map(
+            [], |row| row.get(0)
+        ) {
             Ok(query_result) => query_result,
             Err(error) => {
                 Message::error(&error.to_string());
@@ -132,7 +130,7 @@ impl Database {
         for row in rows {
             row_vector.push(row.unwrap());
         }
-        row_vector
+        return row_vector;
     }
 
     pub fn get_random_note_ids(amount: usize) -> Vec<String> {
@@ -142,7 +140,7 @@ impl Database {
             "SELECT note_id
              FROM note
              ORDER BY RANDOM()
-             LIMIT ?",
+             LIMIT ?"
         ) {
             Ok(query_result) => query_result,
             Err(error) => {
@@ -151,8 +149,8 @@ impl Database {
             }
         };
 
-        
-        Database::get_rows_of_prepared_query(select_statement, &amount.to_string())
+        let rows = Database::get_rows_of_prepared_query(select_statement, &amount.to_string());
+        return rows;
     }
 
     pub fn get_note_id_where(note_property: NoteProperty, value: &str) -> Option<String> {
@@ -161,32 +159,27 @@ impl Database {
             "SELECT note_id
              FROM note
              WHERE {} = :value",
-            note_property.to_db_string()
+             note_property.to_db_string()
         );
 
-        
+        let query_result = conn.query_row(
+            &query,
+            named_params!{
+                ":value": value
+            },
+            |row| row.get(0)
+        ).ok();
 
-        conn
-            .query_row(
-                &query,
-                named_params! {
-                    ":value": value
-                },
-                |row| row.get(0),
-            )
-            .ok()
+        return query_result;
     }
 
-    pub fn get_note_ids_where_property_is_like(
-        note_property: NoteProperty,
-        value: &str,
-    ) -> Vec<String> {
+    pub fn get_note_ids_where_property_is_like(note_property: NoteProperty, value: &str) -> Vec<String> {
         let conn = Database::get_connection();
         let query = format!(
             "SELECT note_id
              FROM note
              WHERE {} LIKE ?;",
-            note_property.to_db_string()
+             note_property.to_db_string()
         );
 
         let select_statement = match conn.prepare(&query) {
@@ -197,38 +190,31 @@ impl Database {
             }
         };
 
-        
-        Database::get_rows_of_prepared_query(select_statement, value)
+        let rows = Database::get_rows_of_prepared_query(select_statement, value);
+        return rows;
     }
 
     pub fn get_note_where_id(note_id: &str) -> Option<Note> {
         let conn = Database::get_connection();
 
-        
-
-        conn
-            .query_row(
-                "SELECT note_id, note_name, file_name, creation_date
+        let query_result = conn.query_row(
+            "SELECT note_id, note_name, file_name, creation_date
              FROM note
              WHERE note_id = :note_id;",
-                named_params! {
-                    ":note_id": note_id
-                },
-                |row| {
-                    Ok(Note {
-                        note_id: row.get(0).unwrap(),
-                        note_name: row.get(1).unwrap(),
-                        file_name: row.get(2).unwrap(),
-                        creation_date_time: Local
-                            .datetime_from_str(
-                                &row.get::<usize, String>(3).unwrap(),
-                                "%Y-%m-%d %H:%M:%S",
-                            )
-                            .ok(),
-                    })
-                },
-            )
-            .ok()
+            named_params!{
+                ":note_id": note_id
+            },
+            |row| {
+                Ok(Note {
+                    note_id: row.get(0).unwrap(),
+                    note_name: row.get(1).unwrap(),
+                    file_name: row.get(2).unwrap(),
+                    creation_date_time: Local.datetime_from_str(&row.get::<usize, String>(3).unwrap(), "%Y-%m-%d %H:%M:%S").ok(),
+                })
+            }
+        ).ok();
+
+        return query_result;
     }
 
     pub fn get_all_recent_note_ids(count: i32) -> Vec<String> {
@@ -238,7 +224,7 @@ impl Database {
             "SELECT note_id
              FROM note
              ORDER BY creation_date DESC
-             LIMIT ?;",
+             LIMIT ?;"
         ) {
             Ok(query_result) => query_result,
             Err(error) => {
@@ -247,8 +233,8 @@ impl Database {
             }
         };
 
-        
-        Database::get_rows_of_prepared_query(select_statement, &count.to_string())
+        let rows = Database::get_rows_of_prepared_query(select_statement, &count.to_string());
+        return rows;
     }
 
     pub fn get_all_note_links() -> Vec<NoteLink> {
@@ -256,7 +242,7 @@ impl Database {
 
         let mut select_statement = match conn.prepare(
             "SELECT note_id, note_link_id
-             FROM note_link",
+             FROM note_link"
         ) {
             Ok(query_result) => query_result,
             Err(error) => {
@@ -278,7 +264,7 @@ impl Database {
         while let Ok(Some(row)) = rows.next() {
             row_vector.push(NoteLink::new(row.get(0).unwrap(), row.get(1).unwrap()));
         }
-        row_vector
+        return row_vector;
     }
 
     pub fn get_tags_of_note(note_id: &str) -> Vec<String> {
@@ -287,7 +273,7 @@ impl Database {
         let select_statement = match conn.prepare(
             "SELECT tag_name
              FROM note_tagging
-             WHERE note_id = ?;",
+             WHERE note_id = ?;"
         ) {
             Ok(query_result) => query_result,
             Err(error) => {
@@ -296,8 +282,8 @@ impl Database {
             }
         };
 
-        
-        Database::get_rows_of_prepared_query(select_statement, note_id)
+        let rows = Database::get_rows_of_prepared_query(select_statement, note_id);
+        return rows;
     }
 
     pub fn get_note_ids_with_tag(tag_name: &str) -> Vec<String> {
@@ -306,7 +292,7 @@ impl Database {
         let select_statement = match conn.prepare(
             "SELECT note_id
              FROM note_tagging
-             WHERE tag_name = ?;",
+             WHERE tag_name = ?;"
         ) {
             Ok(query_result) => query_result,
             Err(error) => {
@@ -315,8 +301,8 @@ impl Database {
             }
         };
 
-        
-        Database::get_rows_of_prepared_query(select_statement, tag_name)
+        let rows = Database::get_rows_of_prepared_query(select_statement, tag_name);
+        return rows;
     }
 
     pub fn get_note_ids_with_tag_like(tag_name: &str) -> Vec<NoteTagging> {
@@ -326,7 +312,7 @@ impl Database {
         let mut select_statement = match conn.prepare(
             "SELECT note_id, tag_name
              FROM note_tagging
-             WHERE tag_name LIKE ?;",
+             WHERE tag_name LIKE ?;"
         ) {
             Ok(query_result) => query_result,
             Err(error) => {
@@ -336,9 +322,10 @@ impl Database {
         };
 
         // Execute statement
-        let rows = match select_statement.query_map(params![tag_name], |row| {
-            Ok((row.get_unwrap(0), row.get_unwrap(1)))
-        }) {
+        let rows = match select_statement.query_map(
+            params![tag_name],
+            |row| Ok((row.get_unwrap(0), row.get_unwrap(1)))
+        ) {
             Ok(query_result) => query_result,
             Err(error) => {
                 Message::error(&error.to_string());
@@ -352,11 +339,14 @@ impl Database {
             let row = row.unwrap();
             row_vector.push(NoteTagging::from(row.0, row.1));
         }
-        row_vector
+        return row_vector;
     }
 
     fn get_rows_of_prepared_query(mut statement: Statement, parameter: &str) -> Vec<String> {
-        let rows = match statement.query_map(params![parameter], |row| row.get(0)) {
+        let rows = match statement.query_map(
+            params![parameter],
+            |row| row.get(0)
+        ) {
             Ok(query_result) => query_result,
             Err(error) => {
                 Message::error(&error.to_string());
@@ -369,7 +359,7 @@ impl Database {
         for row in rows {
             row_vector.push(row.unwrap());
         }
-        row_vector
+        return row_vector;
     }
 
     pub fn update_note_name_where(new_note_name: &str, note_property: NoteProperty, value: &str) {
@@ -379,20 +369,20 @@ impl Database {
             "UPDATE note
              SET note_name = :new_note_name
              WHERE {} = :value",
-            note_property.to_db_string()
+             note_property.to_db_string()
         );
 
         match conn.execute(
             &query,
-            named_params! {
+            named_params!{
                 ":new_note_name": new_note_name,
                 ":value": value
-            },
+            }
         ) {
-            Ok(_) => {}
+            Ok(_) => {  }
             Err(error) => {
                 Message::error(&error.to_string());
-                
+                return;
             }
         };
     }
@@ -408,16 +398,17 @@ impl Database {
                 "SELECT tag_name
                  FROM tag
                  WHERE tag_name = :tag_name",
-                named_params! {
+                named_params!{
                     ":tag_name": tag_name
                 },
-                |row| row.get(0),
+                |row| row.get(0)
             ) {
                 Ok(query_result) => query_result,
                 Err(error) => {
                     if error == Error::QueryReturnedNoRows {
                         None
-                    } else {
+                    }
+                    else {
                         Message::error(&format!("insert-tag: {}", &error.to_string()));
                         return;
                     }
@@ -430,14 +421,14 @@ impl Database {
                 match conn.execute(
                     "INSERT INTO tag (tag_name)
                      VALUES (:tag_name)",
-                    named_params! {
+                    named_params!{
                          ":tag_name": tag_name
-                    },
+                    }
                 ) {
-                    Ok(_) => {}
+                    Ok(_) => {  }
                     Err(error) => {
                         Message::error(&format!("insert-tag: {}", &error.to_string()));
-                        
+                        return;
                     }
                 };
             }
@@ -448,17 +439,18 @@ impl Database {
                 "SELECT tag_name
                  FROM note_tagging
                  WHERE tag_name = :tag_name AND note_id = :note_id",
-                named_params! {
+                named_params!{
                     ":tag_name": tag_name,
                     ":note_id": note_id
                 },
-                |row| row.get(0),
+                |row| row.get(0)
             ) {
                 Ok(query_result) => query_result,
                 Err(error) => {
                     if error == Error::QueryReturnedNoRows {
                         None
-                    } else {
+                    }
+                    else {
                         Message::error(&format!("insert-tag: {}", &error.to_string()));
                         return;
                     }
@@ -471,15 +463,15 @@ impl Database {
                 match conn.execute(
                     "INSERT INTO note_tagging (tag_name, note_id)
                      VALUES (:tag_name, :note_id)",
-                    named_params! {
+                    named_params!{
                          ":tag_name": tag_name,
                          ":note_id": note_id
-                    },
+                    }
                 ) {
-                    Ok(_) => {}
+                    Ok(_) => {  }
                     Err(error) => {
                         Message::error(&format!("insert-note-tagging: {}", &error.to_string()));
-                        
+                        return;
                     }
                 };
             };
@@ -490,10 +482,8 @@ impl Database {
         let conn = Database::get_connection();
 
         if Database::get_note_where_id(note_id).is_none() {
-            return Err(format!(
-                "insert-note-link: the note with the id '{}' wasn't found",
-                note_id
-            ));
+            return Err(format!("insert-note-link: the note with the id '{}' wasn't found",
+                        note_id));
         }
 
         if Database::get_note_where_id(note_link_id).is_none() {
@@ -503,26 +493,23 @@ impl Database {
 
         return insert_note_link(&conn, note_id, note_link_id);
 
-        fn insert_note_link(
-            conn: &Connection,
-            note_id: &str,
-            note_link_id: &str,
-        ) -> Result<(), String> {
+        fn insert_note_link(conn: &Connection, note_id: &str, note_link_id: &str) -> Result<(), String> {
             let note_link_in_db: Option<String> = match conn.query_row(
                 "SELECT note_id
                  FROM note_link
                  WHERE note_id = :note_id AND note_link_id = :note_link_id",
-                named_params! {
+                named_params!{
                     ":note_id": note_id,
                     ":note_link_id": note_link_id
                 },
-                |row| row.get(0),
+                |row| row.get(0)
             ) {
                 Ok(query_result) => query_result,
                 Err(error) => {
                     if error == Error::QueryReturnedNoRows {
                         None
-                    } else {
+                    }
+                    else {
                         return Err(format!("insert-note-link: {}", &error.to_string()));
                     }
                 }
@@ -534,19 +521,19 @@ impl Database {
                 match conn.execute(
                     "INSERT INTO note_link (note_id, note_link_id)
                      VALUES (:note_id, :note_link_id)",
-                    named_params! {
+                    named_params!{
                          ":note_id": note_id,
                          ":note_link_id": note_link_id
-                    },
+                    }
                 ) {
-                    Ok(_) => {}
+                    Ok(_) => {  }
                     Err(error) => {
                         return Err(format!("insert-note-link: {}", &error.to_string()));
                     }
                 };
             };
 
-            Ok(())
+            return Ok(());
         }
     }
 
@@ -556,14 +543,14 @@ impl Database {
         match conn.execute(
             "DELETE FROM note
              WHERE note_id = :note_id",
-            named_params! {
+            named_params!{
                 ":note_id": note_id
-            },
+            }
         ) {
-            Ok(_) => {}
+            Ok(_) => {  }
             Err(error) => {
                 Message::error(&format!("delete-note: {}", &error.to_string()));
-                
+                return;
             }
         };
     }
@@ -574,14 +561,14 @@ impl Database {
         match conn.execute(
             "DELETE FROM tag
              WHERE tag_name = :tag_name",
-            named_params! {
+            named_params!{
                 ":tag_name": tag_name
-            },
+            }
         ) {
-            Ok(_) => {}
+            Ok(_) => {  }
             Err(error) => {
                 Message::error(&format!("delete-tag: {}", &error.to_string()));
-                
+                return;
             }
         };
     }
@@ -592,15 +579,15 @@ impl Database {
         match conn.execute(
             "DELETE FROM note_tagging
              WHERE note_id = :note_id AND tag_name = :tag_name",
-            named_params! {
+            named_params!{
                 ":note_id": note_id,
                 ":tag_name": tag_name
-            },
+            }
         ) {
-            Ok(_) => {}
+            Ok(_) => {  }
             Err(error) => {
                 Message::error(&format!("delete-note-tagging: {}", &error.to_string()));
-                
+                return;
             }
         };
     }
@@ -611,14 +598,14 @@ impl Database {
         match conn.execute(
             "DELETE FROM note_link
              WHERE note_id = :note_id OR note_link_id = :note_id",
-            named_params! {
+            named_params!{
                 ":note_id": note_id
-            },
+            }
         ) {
-            Ok(_) => {}
+            Ok(_) => {  }
             Err(error) => {
                 Message::error(&format!("delete-note-link: {}", &error.to_string()));
-                
+                return;
             }
         };
     }
@@ -637,6 +624,6 @@ impl Database {
                 panic!();
             }
         };
-        conn
+        return conn;
     }
 }
