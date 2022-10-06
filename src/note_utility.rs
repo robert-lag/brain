@@ -2,37 +2,33 @@ use crate::collection_tool::CollectionTool;
 use crate::database::Database;
 use crate::file_utility::FileUtility;
 use crate::message::Message;
-use crate::note::Note;
 use crate::note_metadata::NoteMetadata;
 use crate::note_property::NoteProperty;
 use crate::note_tagging::NoteTagging;
 use crate::note_type::NoteType;
+use crate::note::Note;
 use crate::settings::Settings;
 
 use chrono::prelude::*;
 use colored::*;
-use indoc::{formatdoc, indoc};
+use indoc::{ indoc, formatdoc };
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashSet;
 use std::env;
-use std::ffi::{OsStr, OsString};
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Error, Write};
-use std::path::{Path, PathBuf};
+use std::ffi::{ OsStr, OsString };
+use std::fs::{ self, File, OpenOptions };
+use std::io::{ self, Error, Write };
+use std::path::{ Path, PathBuf };
 use std::process::Command;
 
 lazy_static! {
-    static ref NOTE_LINK_VALIDATOR: Regex = Regex::new(
-        r"(?x)
+    static ref NOTE_LINK_VALIDATOR: Regex = Regex::new(r"(?x)
         \[\[
             ([a-zA-Z0-9]+?)     # $1 = Link text
         \]\]
-    "
-    )
-    .unwrap();
-    static ref NOTE_FORMAT_VALIDATOR: Regex = Regex::new(
-        r##"(?xs)
+    ").unwrap();
+    static ref NOTE_FORMAT_VALIDATOR: Regex = Regex::new(r##"(?xs)
         (                   # $1 = yaml header
             ^
             \s*
@@ -45,11 +41,8 @@ lazy_static! {
         )
         (.*)                # $3 = body of the note
         $
-    "##
-    )
-    .unwrap();
-    static ref NOTE_CONTENT_BACKLINK_VALIDATOR: Regex = Regex::new(
-        r##"(?xs)
+    "##).unwrap();
+    static ref NOTE_CONTENT_BACKLINK_VALIDATOR: Regex = Regex::new(r##"(?xs)
         (                                                   # $1 = text before backlinks
             ^
             \s*
@@ -81,21 +74,13 @@ lazy_static! {
             .*
             $
         )
-    "##
-    )
-    .unwrap();
-    static ref NOTE_NAME_VALIDATOR: Regex = Regex::new(
-        r##"(?x)
+    "##).unwrap();
+    static ref NOTE_NAME_VALIDATOR: Regex = Regex::new(r##"(?x)
         ^[^!?$%§&/=\{\}+*\#|~^@]*$
-    "##
-    )
-    .unwrap();
-    static ref TAG_NAME_VALIDATOR: Regex = Regex::new(
-        r##"(?x)
+    "##).unwrap();
+    static ref TAG_NAME_VALIDATOR: Regex = Regex::new(r##"(?x)
         ^[^!?$%§&/=\{\}+*\|~^@]*$
-    "##
-    )
-    .unwrap();
+    "##).unwrap();
     static ref WHITESPACE_VALIDATOR: Regex = Regex::new(r"^\s*$").unwrap();
 }
 
@@ -119,7 +104,7 @@ impl NoteUtility {
             note_list.push(note.note_name);
         }
 
-        note_list
+        return note_list;
     }
 
     pub fn search(complete_search_string: &str) -> Vec<NoteTagging> {
@@ -128,22 +113,14 @@ impl NoteUtility {
         let mut negated_search_results: HashSet<NoteTagging> = HashSet::new();
 
         for search_string in split_search_strings {
-            search_notes_and_add_to(
-                search_string,
-                &mut search_results,
-                &mut negated_search_results,
-            );
+            search_notes_and_add_to(search_string, &mut search_results, &mut negated_search_results);
         }
 
         let search_results = search_results.difference(&negated_search_results);
-
+        
         return search_results.cloned().collect();
 
-        fn search_notes_and_add_to(
-            mut search_string: &str,
-            search_results: &mut HashSet<NoteTagging>,
-            negated_search_results: &mut HashSet<NoteTagging>,
-        ) {
+        fn search_notes_and_add_to(mut search_string: &str, search_results: &mut HashSet<NoteTagging>, negated_search_results: &mut HashSet<NoteTagging>) {
             let mut individual_search_results = HashSet::new();
             let mut is_search_string_for_tag = false;
             let mut is_negated_search_string = false;
@@ -177,54 +154,38 @@ impl NoteUtility {
             if is_negated_search_string {
                 if negated_search_results.is_empty() {
                     *negated_search_results = individual_search_results;
-                } else {
-                    *negated_search_results = CollectionTool::intersect(
-                        negated_search_results,
-                        &mut individual_search_results,
-                    );
                 }
-            } else if search_results.is_empty() {
-                *search_results = individual_search_results;
+                else {
+                    *negated_search_results = CollectionTool::intersect(negated_search_results, &mut individual_search_results);
+                }
             } else {
-                *search_results =
-                    CollectionTool::intersect(search_results, &mut individual_search_results);
+                if search_results.is_empty() {
+                    *search_results = individual_search_results;
+                }
+                else {
+                    *search_results = CollectionTool::intersect(search_results, &mut individual_search_results);
+                }
             }
 
-            fn search_note_names(
-                individual_search_results: &mut HashSet<NoteTagging>,
-                individual_search_string: &str,
-            ) {
+            fn search_note_names(individual_search_results: &mut HashSet<NoteTagging>, individual_search_string: &str) {
                 let search_string_with_wildcards = format!("%{}%", individual_search_string);
-                let note_ids = Database::get_note_ids_where_property_is_like(
-                    NoteProperty::NoteName,
-                    &search_string_with_wildcards,
-                );
+                let note_ids = Database::get_note_ids_where_property_is_like(NoteProperty::NoteName, &search_string_with_wildcards);
                 for note_id in note_ids {
                     individual_search_results.insert(NoteTagging::from(note_id, None));
                 }
             }
 
-            fn search_note_ids(
-                individual_search_results: &mut HashSet<NoteTagging>,
-                individual_search_string: &str,
-            ) {
+            fn search_note_ids(individual_search_results: &mut HashSet<NoteTagging>, individual_search_string: &str) {
                 let search_string_with_wildcards = format!("%{}%", individual_search_string);
-                let note_ids = Database::get_note_ids_where_property_is_like(
-                    NoteProperty::NoteId,
-                    &search_string_with_wildcards,
-                );
+                let note_ids = Database::get_note_ids_where_property_is_like(NoteProperty::NoteId, &search_string_with_wildcards);
                 for note_id in note_ids {
                     individual_search_results.insert(NoteTagging::from(note_id, None));
                 }
             }
 
-            fn search_tags(
-                individual_search_results: &mut HashSet<NoteTagging>,
-                individual_search_string: &str,
-            ) {
+            fn search_tags(individual_search_results: &mut HashSet<NoteTagging>, individual_search_string: &str) {
                 let search_string_with_wildcards = format!("%{}%", individual_search_string);
-                let note_tagging_results =
-                    Database::get_note_ids_with_tag_like(&search_string_with_wildcards);
+                let note_tagging_results = Database::get_note_ids_with_tag_like(&search_string_with_wildcards);
                 for note_tagging in note_tagging_results {
                     individual_search_results.insert(note_tagging);
                 }
@@ -239,67 +200,46 @@ impl NoteUtility {
 
                 if tag_name.is_some() {
                     let tag_name = tag_name.unwrap();
-                    println!(
-                        "{} {}\t\t{}{}",
-                        note.note_id.yellow(),
-                        note.note_name,
-                        "#".bright_yellow(),
-                        tag_name.bright_yellow()
-                    );
-                } else {
+                    println!("{} {}\t\t{}{}",
+                        note.note_id.yellow(), note.note_name,
+                        "#".bright_yellow(), tag_name.bright_yellow());
+                }
+                else {
                     println!("{} {}", note.note_id.yellow(), note.note_name);
                 }
             }
         }
     }
 
-    pub fn add(
-        note_name: &str,
-        note_type: NoteType,
-        settings: &mut Settings,
-    ) -> Result<Option<String>, String> {
+    pub fn add(note_name: &str, note_type: NoteType, settings: &mut Settings) -> Result<Option<String>, String> {
         let template_path = Path::new(&settings.zettelkasten_dir).join("note-template.md");
         if !template_path.exists() {
-            return Err(format!(
-                "add_note: the note template couldn't be found at '{}'",
-                template_path.to_string_lossy()
-            ));
+            return Err(format!("add_note: the note template couldn't be found at '{}'",
+                template_path.to_string_lossy()));
         }
 
         if !NOTE_NAME_VALIDATOR.is_match(note_name) {
-            return Err(format!(
-                "add_note: the note name '{}' contains illegal characters",
-                note_name
-            ));
+            return Err(format!("add_note: the note name '{}' contains illegal characters", note_name));
         }
 
         if let Some(note) = NoteUtility::create_note_from_template(
             note_name,
             note_type,
             &settings.notes_dir,
-            template_path.as_os_str(),
+            template_path.as_os_str()
         ) {
             if settings.print_to_stdout {
-                Message::info(&format!(
-                    "created note: {} {}",
-                    note.note_id.yellow(),
-                    note.note_name
-                ));
+                Message::info(&format!("created note: {} {}", note.note_id.yellow(), note.note_name));
             }
 
             Database::insert_note(&note);
             return Ok(Some(note.note_id));
         }
 
-        Ok(None)
+        return Ok(None);
     }
 
-    fn create_note_from_template(
-        note_name: &str,
-        note_type: NoteType,
-        notes_dir: &OsStr,
-        template_path: &OsStr,
-    ) -> Option<Note> {
+    fn create_note_from_template(note_name: &str, note_type: NoteType, notes_dir: &OsStr, template_path: &OsStr) -> Option<Note> {
         let creation_date_time = Local::now();
         let creation_timestamp = creation_date_time.format("%Y-%m-%d %H:%M:%S").to_string();
         let creation_file_timestamp = creation_date_time.format("%Y-%m-%d-%H%M%S").to_string();
@@ -309,11 +249,7 @@ impl NoteUtility {
             NoteType::Quote => "Q",
             NoteType::Journal => "J",
         };
-        let note_id = format!(
-            "{}{}",
-            note_type_identifier,
-            creation_date_time.format("%Y%m%d%H%M%S")
-        );
+        let note_id = format!("{}{}", note_type_identifier, creation_date_time.format("%Y%m%d%H%M%S").to_string());
 
         let file_name = format!("{}.md", &creation_file_timestamp);
         let file_path = Path::new(notes_dir).join(&file_name);
@@ -321,42 +257,28 @@ impl NoteUtility {
         let note_content = match FileUtility::get_content_from_file(&template_path) {
             Ok(file_content) => file_content,
             Err(error) => {
-                Message::error(&format!(
-                    "create_note_from_template: couldn't read template file: {}",
-                    error
-                ));
+                Message::error(&format!("create_note_from_template: couldn't read template file: {}", error));
                 return None;
             }
         };
         let note_content = note_content
             .replace("<note-id>", &note_id)
-            .replace("<note-name>", note_name)
+            .replace("<note-name>", &note_name)
             .replace("<creation-date>", &creation_timestamp);
 
         let mut new_note = match File::create(&file_path) {
             Ok(created_file) => created_file,
             Err(error) => {
-                Message::error(&format!(
-                    "create_note_from_template: couldn't create file: {}",
-                    error
-                ));
+                Message::error(&format!("create_note_from_template: couldn't create file: {}", error));
                 return None;
             }
         };
 
         if let Err(error) = new_note.write(note_content.as_bytes()) {
-            Message::warning(&format!(
-                "create_note_from_template: couldn't apply template to created note: {}",
-                error
-            ));
+            Message::warning(&format!("create_note_from_template: couldn't apply template to created note: {}", error));
         };
 
-        Some(Note::new(
-            note_id,
-            note_name.to_string(),
-            file_name,
-            creation_date_time,
-        ))
+        return Some(Note::new(note_id, note_name.to_string(), file_name, creation_date_time));
     }
 
     pub fn remove(note_name: &str, notes_dir: &OsStr) -> Result<(), String> {
@@ -381,18 +303,14 @@ impl NoteUtility {
         Database::delete_all_links_with_note(&note_id);
         Database::delete_note(&note_id);
 
-        match fs::remove_file(&note_file_path) {
-            Ok(_) => {}
+        match fs::remove_file(&note_file_path){
+            Ok(_) => {  },
             Err(error) => {
-                return Err(format!(
-                    "remove_note: note file '{}' couldn't be removed: {}",
-                    note_file_path.to_string_lossy(),
-                    error
-                ));
+                return Err(format!("remove_note: note file '{}' couldn't be removed: {}", note_file_path.to_string_lossy(), error));
             }
         };
 
-        Ok(())
+        return Ok(());
     }
 
     fn delete_tags_of_note(note_id: &str) {
@@ -408,12 +326,10 @@ impl NoteUtility {
         }
     }
 
-    pub fn update_db_for_all_notes_in_project_folder(
-        settings: &mut Settings,
-    ) -> Result<(), String> {
+    pub fn update_db_for_all_notes_in_project_folder(settings: &mut Settings) -> Result<(), String> {
         let cleared_successfully = Database::clear();
         if !cleared_successfully {
-            return Err("update-db: Database couldn't be cleared!".to_string());
+            return Err(format!("update-db: Database couldn't be cleared!"));
         }
 
         println!("(1/4) Create Database...");
@@ -423,7 +339,7 @@ impl NoteUtility {
         println!("(2/4) Get all notes in directory...");
         let note_metadata_list = match NoteUtility::get_all_note_metadata(settings) {
             Ok(result) => result,
-            Err(error) => return Err(error),
+            Err(error) => return Err(error)
         };
         println!("(2/4) Get all notes in directory: Done");
 
@@ -435,11 +351,10 @@ impl NoteUtility {
         let mut former_percentage = 0;
         println!("(3/4) Update notes...");
         for note_metadata in &note_metadata_list {
-            Database::insert_note(note_metadata);
+            Database::insert_note(&note_metadata);
 
             counter += 1;
-            let completion_percentage =
-                ((counter as f32) / (note_metadata_list.len() as f32) * 100.) as usize;
+            let completion_percentage = ((counter as f32) / (note_metadata_list.len() as f32) * 100.) as usize;
             if completion_percentage - former_percentage >= 5 {
                 println!("(3/4) Update notes: {}%", completion_percentage);
                 former_percentage = completion_percentage;
@@ -451,29 +366,25 @@ impl NoteUtility {
         former_percentage = 0;
         println!("(4/4) Update note links and tags...");
         for note_metadata in &note_metadata_list {
-            NoteUtility::check_links_in_note(note_metadata, settings);
+            NoteUtility::check_links_in_note(&note_metadata, settings);
 
             counter += 1;
-            match NoteUtility::check_metadata_of(note_metadata, settings) {
+            match NoteUtility::check_metadata_of(&note_metadata, settings) {
                 Ok(None) => (),
                 Ok(Some(message)) => Message::warning(&message),
                 Err(error) => Message::error(&format!("check_yaml_header_of: {}", error)),
             };
 
-            let completion_percentage =
-                ((counter as f32) / (note_metadata_list.len() as f32) * 100.) as usize;
+            let completion_percentage = ((counter as f32) / (note_metadata_list.len() as f32) * 100.) as usize;
             if completion_percentage - former_percentage >= 5 {
-                println!(
-                    "(4/4) Update note links and tags: {}%",
-                    completion_percentage
-                );
+                println!("(4/4) Update note links and tags: {}%", completion_percentage);
                 former_percentage = completion_percentage;
             }
         }
         println!("(4/4) Update note links and tags: Done");
 
         settings.show_interactive_dialogs = true;
-        Ok(())
+        return Ok(());
     }
 
     fn get_all_note_metadata(settings: &mut Settings) -> Result<Vec<Note>, String> {
@@ -488,24 +399,20 @@ impl NoteUtility {
 
             let file_name = match path.file_name().unwrap().to_str() {
                 Some(value) => value,
-                None => {
-                    return Err(format!(
-                        "update-db: The file name '{}' contains illegal characters!",
-                        path.to_string_lossy()
-                    ))
-                }
+                None => return Err(format!("update-db: The file name '{}' contains illegal characters!",
+                    path.to_string_lossy())),
             };
 
             let absolute_note_file_path = PathBuf::from(&settings.notes_dir).join(&file_name);
-            match NoteMetadata::get_basic_data_of_file(&absolute_note_file_path) {
+            let _ = match NoteMetadata::get_basic_data_of_file(&absolute_note_file_path) {
                 Ok(note_metadata) => {
                     note_metadata_list.push(note_metadata);
-                }
+                },
                 Err(error) => return Err(error),
             };
         }
 
-        Ok(note_metadata_list)
+        return Ok(note_metadata_list);
     }
 
     pub fn get_content_of_note(note_id: &str, settings: &mut Settings) -> Result<String, String> {
@@ -520,34 +427,27 @@ impl NoteUtility {
                 return Err(error.to_string());
             }
         };
-        Ok(note_content)
+        return Ok(note_content);
     }
 
     pub fn open_random_note(settings: &mut Settings) {
         let note_id;
         let random_notes = Database::get_random_note_ids(1);
-        if !random_notes.is_empty() {
+        if random_notes.len() >= 1 {
             note_id = &random_notes[0];
         } else {
             Message::error("open_random_note: couldn't find a random note");
             return;
         }
-
+        
         let note = match Database::get_note_where_id(note_id) {
             Some(value) => value,
             None => {
-                Message::error(&format!(
-                    "open_random_note: couldn't open note: the note id '{}' does not exist!",
-                    note_id
-                ));
+                Message::error(&format!("open_random_note: couldn't open note: the note id '{}' does not exist!", note_id));
                 return;
             }
         };
-        Message::info(&format!(
-            "opened note:  {} {} ",
-            note_id.yellow(),
-            note.note_name
-        ));
+        Message::info(&format!("opened note:  {} {} ", note_id.yellow(), note.note_name));
 
         if let Err(error) = NoteUtility::open(note_id, settings) {
             Message::error(&error);
@@ -561,60 +461,46 @@ impl NoteUtility {
                 return Err(format!("the note id '{}' does not exist!", note_id));
             }
         };
-        // let env_vars = env::vars();
-        // for (k,v) in env_vars{
-        //
-        //     println!("{} {}",k,v);
-        // }
         let editor = match env::var("EDITOR") {
             Ok(value) => value,
             Err(error) => {
-                if cfg!(windows) {
-                    "notepad.exe".to_string()
-                } else {
-                    return Err(format!(
-                        "couldn't read the EDITOR environment variable: '{}'",
-                        error
-                    ));
-                }
+                return Err(format!("couldn't read the EDITOR environment variable: '{}'", error));
             }
         };
         let absolute_file_path = match NoteUtility::get_absolute_path_of_note(note_id, settings) {
             Ok(value) => value,
             Err(error) => {
-                return Err(format!(
-                    "couldn't get the absolute path of {}: '{}'",
-                    &note.file_name, error
-                ));
+                return Err(format!("couldn't get the absolute path of {}: '{}'",
+                    &note.file_name,
+                    error));
             }
         };
 
         // Open the note in the editor specified by the EDITOR environment variable
         match Command::new(&editor).arg(&absolute_file_path).status() {
-            Ok(_) => {}
+            Ok(_) => {  },
             Err(error) => {
-                return Err(format!(
-                    "couldn't open the note '{}' with '{}': '{}'",
-                    &editor, &note.file_name, error
-                ));
+                return Err(format!("couldn't open the note '{}' with '{}': '{}'",
+                    &editor,
+                    &note.file_name,
+                    error));
             }
         };
 
-        settings.note_history.add(note_id)?;
+        if let Err(error) = settings.note_history.add(note_id) {
+            return Err(error);
+        }
 
         NoteUtility::check_links_in_note(&note, settings);
 
         match NoteUtility::check_metadata_of(&note, settings) {
-            Ok(None) => Ok(None),
-            Ok(Some(message)) => Ok(Some(message)),
-            Err(error) => Err("check_yaml_header_of: ".to_string() + &error),
+            Ok(None) => return Ok(None),
+            Ok(Some(message)) => return Ok(Some(message)),
+            Err(error) => return Err("check_yaml_header_of: ".to_string() + &error),
         }
     }
 
-    fn get_absolute_path_of_note(
-        note_id: &str,
-        settings: &mut Settings,
-    ) -> Result<OsString, String> {
+    fn get_absolute_path_of_note(note_id: &str, settings: &mut Settings) -> Result<OsString, String> {
         let note = match Database::get_note_where_id(note_id) {
             Some(value) => value,
             None => {
@@ -635,14 +521,12 @@ impl NoteUtility {
     }
 
     fn check_links_in_note(note: &Note, settings: &Settings) {
-        if let Some(note_links) = NoteUtility::get_all_links_in_note(note, settings) {
+        if let Some(note_links) = NoteUtility::get_all_links_in_note(&note, settings) {
             if settings.backlinking_enabled {
-                NoteUtility::create_backlinks_from(&note_links, note, settings);
+                NoteUtility::create_backlinks_from(&note_links, &note, settings);
             }
             for note_link_id in note_links {
-                if let Err(error) =
-                    Database::insert_note_link_for_note(&note.note_id, &note_link_id)
-                {
+                if let Err(error) = Database::insert_note_link_for_note(&note.note_id, &note_link_id) {
                     Message::warning(&error);
                 }
             }
@@ -654,12 +538,10 @@ impl NoteUtility {
         let note_content = match FileUtility::get_content_from_file(&absolute_note_file_path) {
             Ok(value) => value,
             Err(error) => {
-                Message::error(&format!(
-                    "get-all-links-in-note: couldn't read content of note '{} {}': {}",
+                Message::error(&format!("get-all-links-in-note: couldn't read content of note '{} {}': {}",
                     note.note_id.yellow(),
                     note.note_name,
-                    error
-                ));
+                    error));
                 return None;
             }
         };
@@ -671,19 +553,19 @@ impl NoteUtility {
                 let linked_note_id = note_link_match.get(1).unwrap().as_str();
                 note_links.push(linked_note_id.to_string());
             }
-            Some(note_links)
+            return Some(note_links);
         } else {
             Message::warning(&format!("get-all-links-in-note: couldn't search for links in '{} {}': note does not have the correct format",
                 note.note_id.yellow(),
                 note.note_name));
             Message::display_correct_note_format();
-            None
+            return None;
         }
     }
 
     fn create_backlinks_from(note_links: &Vec<String>, source_note: &Note, settings: &Settings) {
         for linked_note_id in note_links {
-            if let Some(linked_note) = Database::get_note_where_id(linked_note_id) {
+            if let Some(linked_note) = Database::get_note_where_id(&linked_note_id) {
                 NoteUtility::add_backlink_to(&linked_note, &source_note.note_id, settings)
             }
         }
@@ -694,11 +576,9 @@ impl NoteUtility {
         let note_content = match FileUtility::get_content_from_file(&absolute_note_file_path) {
             Ok(value) => value,
             Err(error) => {
-                Message::error(&format!(
-                    "add_backlink: couldn't read note file '{}': {}",
+                Message::error(&format!("add_backlink: couldn't read note file '{}': {}",
                     &absolute_note_file_path.to_string_lossy(),
-                    error
-                ));
+                    error));
                 return;
             }
         };
@@ -715,39 +595,29 @@ impl NoteUtility {
             let backlinks_string = create_backlinks_string_from(backlinks, backlink_id);
             let new_note_content = text_before_backlinks + &backlinks_string + text_after_backlinks;
 
-            if let Err(error) = NoteUtility::replace_content_of_file(
-                &absolute_note_file_path,
-                new_note_content.as_bytes(),
-            ) {
-                Message::error(&format!(
-                    "add_backlink: couldn't change contents of note '{} {}': {}",
+            if let Err(error) = NoteUtility::replace_content_of_file(&absolute_note_file_path, new_note_content.as_bytes()) {
+                Message::error(&format!("add_backlink: couldn't change contents of note '{} {}': {}",
                     note.note_id.yellow(),
                     note.note_name,
-                    error
-                ));
+                    error));  
             };
         } else {
-            Message::error(&format!(
-                "couldn't add backlink to '{} {}': note does not have the correct format",
+            Message::error(&format!("couldn't add backlink to '{} {}': note does not have the correct format",
                 note.note_id.yellow(),
-                note.note_name
-            ));
+                note.note_name));
             return;
         }
 
-        fn create_backlinks_string_from(
-            existing_backlinks_list: &str,
-            new_backlink_id: &str,
-        ) -> String {
+        fn create_backlinks_string_from(existing_backlinks_list: &str, new_backlink_id: &str) -> String {
             let mut new_backlinks_list = String::from(existing_backlinks_list);
-
-            if !new_backlinks_list.is_empty() {
+            
+            if new_backlinks_list.len() > 0 {
                 new_backlinks_list.push_str(", ");
             }
             new_backlinks_list.push_str(&format!("[[{}]]", new_backlink_id));
 
             let backlinks_string = format!("backlinks: [ {} ]", new_backlinks_list);
-            backlinks_string
+            return backlinks_string;
         }
 
         fn backlink_exists_in_string(backlink_id: &str, existing_backlinks_string: &str) -> bool {
@@ -758,23 +628,25 @@ impl NoteUtility {
                 }
             }
 
-            false
+            return false;
         }
     }
 
-    fn replace_content_of_file<P: AsRef<Path>>(
-        path: P,
-        new_file_content: &[u8],
-    ) -> Result<(), Error> {
-        let mut note_file = match OpenOptions::new().write(true).truncate(true).open(path) {
+    fn replace_content_of_file<P: AsRef<Path>>(path: P, new_file_content: &[u8]) -> Result<(), Error> {
+        let mut note_file = match OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(path) {
             Ok(opened_file) => opened_file,
             Err(error) => return Err(error),
         };
-        note_file.write(new_file_content)?;
+        if let Err(error) = note_file.write(new_file_content) {
+            return Err(error);
+        }
 
-        Ok(())
+        return Ok(());
     }
-
+    
     fn show_open_file_dialog_for(note_id: &str, settings: &mut Settings) {
         if !settings.show_interactive_dialogs {
             return;
@@ -785,17 +657,15 @@ impl NoteUtility {
 
         let mut open_file_again = String::new();
         match io::stdin().read_line(&mut open_file_again) {
-            Ok(_) => {}
+            Ok(_) => { },
             Err(error) => {
-                Message::error(&format!(
-                    "show_open_file_dialog: couldn't read user input: {}",
-                    error
-                ));
+                Message::error(&format!("show_open_file_dialog: couldn't read user input: {}",
+                    error));
                 return;
             }
         }
 
-        if open_file_again.trim().to_lowercase() != "n" {
+        if !(open_file_again.trim().to_lowercase() == "n") {
             if let Err(error) = NoteUtility::open(note_id, settings) {
                 Message::error(&error);
             }
@@ -811,7 +681,7 @@ impl NoteUtility {
             }
         }
 
-        note_list
+        return note_list;
     }
 
     pub fn print_note_list(note_list: Vec<Note>) {
@@ -838,8 +708,7 @@ impl NoteUtility {
 
     fn check_metadata_of(note: &Note, settings: &mut Settings) -> Result<Option<String>, String> {
         let mut warning_message = String::new();
-        let note_name = match NoteMetadata::get_property_of(note, NoteProperty::NoteName, settings)
-        {
+        let note_name = match NoteMetadata::get_property_of(note, NoteProperty::NoteName, settings) {
             Ok(value) => value,
             Err(error) => return Err(error),
         };
@@ -848,12 +717,8 @@ impl NoteUtility {
             Err(error) => return Err(error),
         };
 
-        match NoteUtility::check_metadata_name_of(
-            &note.note_id,
-            note_name,
-            &note.note_name,
-            settings,
-        ) {
+
+        match NoteUtility::check_metadata_name_of(&note.note_id, note_name, &note.note_name, settings) {
             Err(error) => return Err(error),
             Ok(Some(warning)) => warning_message = warning,
             Ok(None) => (),
@@ -865,19 +730,14 @@ impl NoteUtility {
             Ok(None) => (),
         }
 
-        if warning_message.is_empty() {
-            Ok(None)
+        if warning_message == "" {
+            return Ok(None);
         } else {
-            Ok(Some(warning_message))
+            return Ok(Some(warning_message));
         }
     }
 
-    fn check_metadata_name_of(
-        note_id: &str,
-        note_name: Option<String>,
-        original_note_name: &str,
-        settings: &mut Settings,
-    ) -> Result<Option<String>, String> {
+    fn check_metadata_name_of(note_id: &str, note_name: Option<String>, original_note_name: &str, settings: &mut Settings) -> Result<Option<String>, String> {
         match note_name {
             Some(new_note_name) => {
                 if WHITESPACE_VALIDATOR.is_match(&new_note_name) {
@@ -914,16 +774,12 @@ impl NoteUtility {
         }
     }
 
-    fn check_metadata_tags_of(
-        note_id: &str,
-        tags: Option<Vec<String>>,
-        settings: &mut Settings,
-    ) -> Result<Option<String>, String> {
+    fn check_metadata_tags_of(note_id: &str, tags: Option<Vec<String>>, settings: &mut Settings) -> Result<Option<String>, String> {
         NoteUtility::delete_tags_of_note(note_id);
 
         match tags {
             Some(tags) => {
-                if tags.is_empty() {
+                if tags.len() == 0 {
                     if settings.print_to_stdout {
                         show_missing_tags_warning_for(note_id, settings);
                     } else {
@@ -935,10 +791,7 @@ impl NoteUtility {
                     if TAG_NAME_VALIDATOR.is_match(tag) {
                         Database::insert_tag_for_note(tag, note_id);
                     } else {
-                        return Err(format!(
-                            "check_tags: the tag name '{}' contains illegal characters",
-                            tag
-                        ));
+                        return Err(format!("check_tags: the tag name '{}' contains illegal characters", tag));
                     }
                 }
             }
@@ -946,10 +799,7 @@ impl NoteUtility {
                 if settings.print_to_stdout {
                     show_missing_tags_warning_for(note_id, settings);
                 } else {
-                    return Ok(Some(format!(
-                        "the note '{}' doesn't have any tags! It will be difficult to find again!",
-                        note_id
-                    )));
+                    return Ok(Some(format!("the note '{}' doesn't have any tags! It will be difficult to find again!", note_id)));
                 }
             }
         }

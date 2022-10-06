@@ -22,16 +22,11 @@ impl InputString {
     }
 
     pub fn get_displayed_text(&self) -> String {
-        self.text.clone()
+        return self.text.clone();
     }
 
     pub fn get_content_text(&self) -> String {
-        return self
-            .text
-            .chars()
-            .into_iter()
-            .skip(self.pre_text_length)
-            .collect();
+        return self.text.chars().into_iter().skip(self.pre_text_length).collect();
     }
 
     pub fn set_pre_text(&mut self, pre_text: &str) {
