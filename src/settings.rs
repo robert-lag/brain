@@ -23,7 +23,10 @@ impl Settings {
             show_interactive_dialogs: true,
         };
 
-        if let Err(error) = settings.note_history.init(&settings.zettelkasten_dir.as_os_str()) {
+        if let Err(error) = settings
+            .note_history
+            .init(&settings.zettelkasten_dir.as_os_str())
+        {
             Message::info(&("initializing history: ".to_string() + &error));
         }
         return settings;

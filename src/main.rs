@@ -6,15 +6,16 @@ mod file_utility;
 mod graph;
 mod history;
 mod message;
+mod note;
 mod note_link;
 mod note_metadata;
 mod note_property;
 mod note_tagging;
 mod note_type;
 mod note_utility;
-mod note;
 mod settings;
 
+use brn_tui::main::BrnTui;
 use database::Database;
 use directory::Directory;
 use graph::main::Graph;
@@ -23,10 +24,9 @@ use note_property::NoteProperty;
 use note_type::NoteType;
 use note_utility::NoteUtility;
 use settings::Settings;
-use brn_tui::main::BrnTui;
 
+use clap::{crate_name, crate_version, App, AppSettings, Arg, ArgMatches, SubCommand};
 use include_dir::{include_dir, Dir};
-use clap::{ Arg, App, SubCommand, AppSettings, ArgMatches, crate_name, crate_version };
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
@@ -136,7 +136,10 @@ fn main() {
         )
         .get_matches();
 
-    let notes_dir = matches.value_of_os("directory").unwrap_or(OsStr::new("./")).to_os_string();
+    let notes_dir = matches
+        .value_of_os("directory")
+        .unwrap_or(OsStr::new("./"))
+        .to_os_string();
     let notes_dir_path = Path::new(&notes_dir);
     let zettelkasten_dir = notes_dir_path.join(".zettelkasten").into_os_string();
     let mut settings = Settings::init(notes_dir, zettelkasten_dir);
@@ -159,9 +162,15 @@ fn main() {
         ("history", Some(history_matches)) => exec_history_command(&history_matches, &mut settings),
         ("add", Some(add_matches)) => exec_add_command(&add_matches, &mut settings),
         ("rm", Some(remove_matches)) => exec_rm_command(&remove_matches, &mut settings),
-        ("update-db", Some(update_db_matches)) => exec_update_db_command(&update_db_matches, &mut settings),
-        ("get-name", Some(get_name_matches)) => exec_get_name_command(&get_name_matches, &mut settings),
-        ("get-file-name", Some(get_file_name_matches)) => exec_get_file_name_command(&get_file_name_matches, &mut settings),
+        ("update-db", Some(update_db_matches)) => {
+            exec_update_db_command(&update_db_matches, &mut settings)
+        }
+        ("get-name", Some(get_name_matches)) => {
+            exec_get_name_command(&get_name_matches, &mut settings)
+        }
+        ("get-file-name", Some(get_file_name_matches)) => {
+            exec_get_file_name_command(&get_file_name_matches, &mut settings)
+        }
         ("graph", Some(graph_matches)) => exec_graph_command(&graph_matches, &mut settings),
         _ => (),
     }
@@ -169,13 +178,18 @@ fn main() {
 
 fn exec_init_command(_matches: &ArgMatches, settings: &mut Settings) {
     if Directory::is_zettelkasten_dir(&settings.notes_dir, true) {
-        Message::info(&format!("the specified directory is already a zettelkasten directory: {}",
-            &settings.notes_dir.to_string_lossy()));
+        Message::info(&format!(
+            "the specified directory is already a zettelkasten directory: {}",
+            &settings.notes_dir.to_string_lossy()
+        ));
         return;
     }
 
     initialize_zettelkasten(&settings.notes_dir);
-    if let Err(error) = settings.note_history.init(&settings.zettelkasten_dir.as_os_str()) {
+    if let Err(error) = settings
+        .note_history
+        .init(&settings.zettelkasten_dir.as_os_str())
+    {
         Message::info(&("initializing history: ".to_string() + &error));
     }
 }
@@ -185,11 +199,16 @@ fn initialize_zettelkasten(directory: &OsStr) {
     let zettelkasten_dir_path = notes_path.join(".zettelkasten");
 
     match fs::create_dir(&zettelkasten_dir_path) {
-        Ok(_) => Message::info(&format!("initialized zettelkasten directory in '{}'", &notes_path.display())),
+        Ok(_) => Message::info(&format!(
+            "initialized zettelkasten directory in '{}'",
+            &notes_path.display()
+        )),
         Err(error) => {
-            Message::error(&format!("problem creating the zettelkasten directory in '{}': {}",
+            Message::error(&format!(
+                "problem creating the zettelkasten directory in '{}': {}",
                 &notes_path.display(),
-                error));
+                error
+            ));
             return;
         }
     };
@@ -197,16 +216,21 @@ fn initialize_zettelkasten(directory: &OsStr) {
     let zettelkasten_dir_files = include_dir!("src/for_zettelkasten_dir");
     copy_directory_to_zettelkasten_dir(&zettelkasten_dir_files, &zettelkasten_dir_path, false);
 
-
     Database::init();
 }
 
-fn copy_directory_to_zettelkasten_dir(directory: &Dir, zettelkasten_dir_path: &Path, create_directory: bool) {
+fn copy_directory_to_zettelkasten_dir(
+    directory: &Dir,
+    zettelkasten_dir_path: &Path,
+    create_directory: bool,
+) {
     if create_directory {
         if let Err(error) = fs::create_dir(&zettelkasten_dir_path.join(directory.path())) {
-            Message::error(&format!("problem creating the directory '{}': {}",
+            Message::error(&format!(
+                "problem creating the directory '{}': {}",
                 &zettelkasten_dir_path.display(),
-                error));
+                error
+            ));
             return;
         }
     }
@@ -219,10 +243,13 @@ fn copy_directory_to_zettelkasten_dir(directory: &Dir, zettelkasten_dir_path: &P
         let new_file_path = zettelkasten_dir_path.join(&file.path());
         let file_content = file.contents_utf8().unwrap();
         match fs::write(&new_file_path, file_content) {
-            Ok(_) => {  },
+            Ok(_) => {}
             Err(error) => {
-                Message::error(&format!("failed to create file in {}: {}",
-                    &new_file_path.to_string_lossy(), error));
+                Message::error(&format!(
+                    "failed to create file in {}: {}",
+                    &new_file_path.to_string_lossy(),
+                    error
+                ));
                 return;
             }
         };
@@ -241,7 +268,13 @@ fn exec_list_command(matches: &ArgMatches, settings: &mut Settings) {
     if !Directory::is_zettelkasten_dir(&settings.notes_dir, false) {
         return;
     }
-    NoteUtility::list(matches.value_of("count").unwrap_or("100").parse().unwrap_or(100));
+    NoteUtility::list(
+        matches
+            .value_of("count")
+            .unwrap_or("100")
+            .parse()
+            .unwrap_or(100),
+    );
 }
 
 fn exec_open_command(matches: &ArgMatches, settings: &mut Settings) {
@@ -314,12 +347,10 @@ fn exec_add_command(matches: &ArgMatches, settings: &mut Settings) {
 
     match NoteUtility::add(note_name, note_type, settings) {
         Ok(None) => (),
-        Ok(Some(note_id)) => {
-            match NoteUtility::open(&note_id, settings) {
-                Ok(None) => (),
-                Ok(Some(message)) => Message::warning(&message),
-                Err(error) => Message::error(&error),
-            }
+        Ok(Some(note_id)) => match NoteUtility::open(&note_id, settings) {
+            Ok(None) => (),
+            Ok(Some(message)) => Message::warning(&message),
+            Err(error) => Message::error(&error),
         },
         Err(error) => Message::error(&error),
     }

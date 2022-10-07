@@ -14,30 +14,30 @@ impl CollectionTool {
 
     // pub fn difference<T>(a: &mut HashSet<T>, b: &mut HashSet<T>) -> HashSet<T>
     // where
-        // T: Hash
-        // T: Eq,
+    // T: Hash
+    // T: Eq,
     // {
-        // let resulting_set: HashSet<T> = a.iter().filter_map(|v|
-            // if b.contains(v) {
-                // None
-            // } else {
-                // Some(v)
-            // }).collect();
-        // let mut resulting_set = HashSet::new();
-        // let mut referencing_set = HashSet::new();
-        
-        // for value in a.iter() {
-            // if !b.contains(value) {
-                // referencing_set.insert(value);
-            // }
-        // }
+    // let resulting_set: HashSet<T> = a.iter().filter_map(|v|
+    // if b.contains(v) {
+    // None
+    // } else {
+    // Some(v)
+    // }).collect();
+    // let mut resulting_set = HashSet::new();
+    // let mut referencing_set = HashSet::new();
 
-        // for reference_value in referencing_set.iter() {
-            // if let Some(taken_value) = a.take(reference_value.cloned()) {
-                // resulting_set.insert(taken_value);
-            // }
-        // }
+    // for value in a.iter() {
+    // if !b.contains(value) {
+    // referencing_set.insert(value);
+    // }
+    // }
 
-        // return resulting_set;
+    // for reference_value in referencing_set.iter() {
+    // if let Some(taken_value) = a.take(reference_value.cloned()) {
+    // resulting_set.insert(taken_value);
+    // }
+    // }
+
+    // return resulting_set;
     // }
 }

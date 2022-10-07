@@ -3,14 +3,14 @@ use std::hash::{Hash, Hasher};
 #[derive(Clone)]
 pub struct NoteTagging {
     pub note_id: String,
-    pub tag_name: Option<String>
+    pub tag_name: Option<String>,
 }
 
 impl NoteTagging {
     pub fn from(note_id: String, tag_name: Option<String>) -> Self {
         NoteTagging {
             note_id: note_id,
-            tag_name: tag_name
+            tag_name: tag_name,
         }
     }
 }

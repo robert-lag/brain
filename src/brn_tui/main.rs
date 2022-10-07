@@ -1,27 +1,25 @@
-use crate::brn_tui::tui_data::TuiData;
 use crate::brn_tui::input_mode::InputMode;
+use crate::brn_tui::tui_data::TuiData;
 use crate::database::Database;
 use crate::note_property::NoteProperty;
 use crate::note_type::NoteType;
 use crate::note_utility::NoteUtility;
 use crate::settings::Settings;
 
-use clipboard::{ ClipboardProvider, ClipboardContext };
+use clipboard::{ClipboardContext, ClipboardProvider};
 use crossterm::{
-    event::{ self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers },
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
-    terminal::{ disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen },
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use regex::Regex;
 use std::io;
 use std::io::Write;
-use regex::Regex;
 use tui::{
-    backend::{ Backend, CrosstermBackend },
-    layout::{ Alignment, Constraint, Direction, Layout, Margin, Rect },
-    style::{ Color, Modifier, Style },
-    widgets::{
-        Block, Borders, List, ListItem, Paragraph,
-    },
+    backend::{Backend, CrosstermBackend},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
+    style::{Color, Modifier, Style},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame, Terminal,
 };
 
@@ -43,7 +41,8 @@ impl BrnTui {
             terminal.backend_mut(),
             LeaveAlternateScreen,
             DisableMouseCapture
-        ).unwrap();
+        )
+        .unwrap();
         terminal.show_cursor().unwrap();
 
         if let Err(error) = result {
@@ -51,7 +50,11 @@ impl BrnTui {
         }
     }
 
-    fn run_app<B: Backend + Write>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) -> io::Result<()> {
+    fn run_app<B: Backend + Write>(
+        terminal: &mut Terminal<B>,
+        tui_data: &mut TuiData,
+        settings: &mut Settings,
+    ) -> io::Result<()> {
         BrnTui::show_note_content_preview(tui_data, settings);
         loop {
             terminal.draw(|f| BrnTui::render_ui(f, tui_data)).unwrap();
@@ -61,34 +64,36 @@ impl BrnTui {
                 match tui_data.input_mode {
                     InputMode::Normal => match key.code {
                         KeyCode::Char('q') => return Ok(()),
-                        KeyCode::Char('j') | KeyCode::Down
-                            => BrnTui::increment_selected_value(tui_data, settings),
-                        KeyCode::Char('k') | KeyCode::Up
-                            => BrnTui::decrement_selected_value(tui_data, settings),
-                        KeyCode::Char('g')
-                            => BrnTui::select_first_value(tui_data, settings),
-                        KeyCode::Char('G')
-                            => BrnTui::select_last_value(tui_data, settings),
-                        KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter
-                            => BrnTui::open_selected_note(terminal, tui_data, settings),
-                        KeyCode::Char('y')
-                            => BrnTui::copy_selected_note_as_link(tui_data),
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            BrnTui::increment_selected_value(tui_data, settings)
+                        }
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            BrnTui::decrement_selected_value(tui_data, settings)
+                        }
+                        KeyCode::Char('g') => BrnTui::select_first_value(tui_data, settings),
+                        KeyCode::Char('G') => BrnTui::select_last_value(tui_data, settings),
+                        KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
+                            BrnTui::open_selected_note(terminal, tui_data, settings)
+                        }
+                        KeyCode::Char('y') => BrnTui::copy_selected_note_as_link(tui_data),
                         KeyCode::Char('a') => {
                             tui_data.edit_text.set_pre_text("Name: ");
                             tui_data.input_mode = InputMode::Add;
-                        },
+                        }
                         KeyCode::Esc => {
                             let note_list = NoteUtility::get(100);
                             tui_data.note_list.replace_items_with(note_list);
                             tui_data.note_list.select(Some(0));
                             tui_data.note_list_title = String::from("List");
-                        },
+                        }
                         KeyCode::Char('h') => {
                             let note_history = NoteUtility::get_note_history(settings);
-                            tui_data.note_list.replace_items_with(note_history.iter().map(|m| m.note_name.clone()).collect());
+                            tui_data.note_list.replace_items_with(
+                                note_history.iter().map(|m| m.note_name.clone()).collect(),
+                            );
                             tui_data.note_list.select(Some(0));
                             tui_data.note_list_title = String::from("History");
-                        },
+                        }
                         KeyCode::Char('r') => {
                             let note_id_list = Database::get_random_note_ids(10);
                             let mut note_list = Vec::new();
@@ -98,16 +103,19 @@ impl BrnTui {
                                 };
                             }
 
-                            tui_data.note_list.replace_items_with(note_list.iter().map(|m| m.note_name.clone()).collect());
+                            tui_data.note_list.replace_items_with(
+                                note_list.iter().map(|m| m.note_name.clone()).collect(),
+                            );
                             tui_data.note_list.select(Some(0));
                             tui_data.note_list_title = String::from("Random notes");
-                        },
+                        }
                         KeyCode::Char('x') => {
-                            tui_data.edit_text.set_pre_text("Remove currently selected note [y|N]: ");
+                            tui_data
+                                .edit_text
+                                .set_pre_text("Remove currently selected note [y|N]: ");
                             tui_data.input_mode = InputMode::Remove;
-                        },
-                        KeyCode::Char('/')
-                            => tui_data.input_mode = InputMode::Search,
+                        }
+                        KeyCode::Char('/') => tui_data.input_mode = InputMode::Search,
                         _ => (),
                     },
                     InputMode::Add => match key.code {
@@ -122,10 +130,10 @@ impl BrnTui {
                                 tui_data.edit_text.clear();
                                 tui_data.note_name_cache.clear();
                             }
-                        },
+                        }
                         KeyCode::Backspace | KeyCode::Delete => {
                             tui_data.edit_text.pop();
-                        },
+                        }
                         KeyCode::Char('h') => {
                             // Workaround to recognize `^H` control char as backspace
                             if key.modifiers == KeyModifiers::CONTROL {
@@ -133,28 +141,32 @@ impl BrnTui {
                             } else {
                                 tui_data.edit_text.push('h');
                             }
-                        },
+                        }
                         KeyCode::Char(c) => {
                             tui_data.edit_text.push(c);
-                        },
+                        }
                         _ => (),
                     },
                     InputMode::Remove => match key.code {
                         KeyCode::Esc => tui_data.input_mode = InputMode::Normal,
                         KeyCode::Enter => {
                             let confirmation_validator = Regex::new("^[Yy]$").unwrap();
-                            if confirmation_validator.is_match(&tui_data.edit_text.get_content_text()) {
+                            if confirmation_validator
+                                .is_match(&tui_data.edit_text.get_content_text())
+                            {
                                 if let Some(selected_note) = tui_data.note_list.selected_item() {
-                                    if let Err(error) = NoteUtility::remove(selected_note, &settings.notes_dir) {
+                                    if let Err(error) =
+                                        NoteUtility::remove(selected_note, &settings.notes_dir)
+                                    {
                                         tui_data.message = error;
                                     }
                                 }
                             }
                             tui_data.input_mode = InputMode::Normal;
-                        },
+                        }
                         KeyCode::Backspace | KeyCode::Delete => {
                             tui_data.edit_text.pop();
-                        },
+                        }
                         KeyCode::Char('h') => {
                             // Workaround to recognize `^H` control char as backspace
                             if key.modifiers == KeyModifiers::CONTROL {
@@ -162,10 +174,10 @@ impl BrnTui {
                             } else {
                                 tui_data.edit_text.push('h');
                             }
-                        },
+                        }
                         KeyCode::Char(c) => {
                             tui_data.edit_text.push(c);
-                        },
+                        }
                         _ => (),
                     },
                     InputMode::Search => match key.code {
@@ -174,10 +186,10 @@ impl BrnTui {
                             tui_data.input_mode = InputMode::Normal;
                             BrnTui::execute_search(tui_data, settings);
                             tui_data.note_list_title = tui_data.search_text.get_displayed_text();
-                        },
+                        }
                         KeyCode::Backspace | KeyCode::Delete => {
                             tui_data.search_text.pop();
-                        },
+                        }
                         KeyCode::Char('h') => {
                             // Workaround to recognize `^H` control char as backspace
                             if key.modifiers == KeyModifiers::CONTROL {
@@ -185,10 +197,10 @@ impl BrnTui {
                             } else {
                                 tui_data.search_text.push('h');
                             }
-                        },
+                        }
                         KeyCode::Char(c) => {
                             tui_data.search_text.push(c);
-                        },
+                        }
                         _ => (),
                     },
                 }
@@ -199,40 +211,42 @@ impl BrnTui {
     fn render_ui<B: Backend>(f: &mut Frame<B>, tui_data: &mut TuiData) {
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(
-                [
-                    Constraint::Min(0),
-                    Constraint::Length(1),
-                ].as_ref()
-            )
-            .split(f.size().inner(&Margin {vertical: 1, horizontal: 1}));
+            .constraints([Constraint::Min(0), Constraint::Length(1)].as_ref())
+            .split(f.size().inner(&Margin {
+                vertical: 1,
+                horizontal: 1,
+            }));
 
         let horizontal_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .margin(0)
-            .constraints(
-                [
-                    Constraint::Percentage(35),
-                    Constraint::Min(0),
-                ].as_ref()
-            )
+            .constraints([Constraint::Percentage(35), Constraint::Min(0)].as_ref())
             .split(vertical_chunks[0]);
 
         BrnTui::render_note_list(f, horizontal_chunks[0], tui_data);
         BrnTui::render_note_preview(f, horizontal_chunks[1], tui_data);
-        BrnTui::render_message_block(f, vertical_chunks[1].inner(&Margin {vertical: 0, horizontal: 1}), tui_data);
+        BrnTui::render_message_block(
+            f,
+            vertical_chunks[1].inner(&Margin {
+                vertical: 0,
+                horizontal: 1,
+            }),
+            tui_data,
+        );
     }
 
     fn render_note_list<B: Backend>(f: &mut Frame<B>, area: Rect, tui_data: &mut TuiData) {
-        let selected_style = Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+        let selected_style = Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD);
         let normal_style = Style::default().fg(Color::White);
 
         // Get notes to show
-        let items: Vec<ListItem> = tui_data.note_list.get_items()
+        let items: Vec<ListItem> = tui_data
+            .note_list
+            .get_items()
             .iter()
-            .map(|m| {
-                ListItem::new(m.to_string())
-            })
+            .map(|m| ListItem::new(m.to_string()))
             .collect();
 
         // Render note list
@@ -243,7 +257,7 @@ impl BrnTui {
             .block(
                 Block::default()
                     .title(tui_data.note_list_title.clone())
-                    .borders(Borders::ALL)
+                    .borders(Borders::ALL),
             );
         f.render_stateful_widget(list, area, tui_data.note_list.get_state());
     }
@@ -255,14 +269,18 @@ impl BrnTui {
         };
 
         // Render note preview
-        let outer_note_block = Block::default()
-                    .title(title)
-                    .borders(Borders::ALL);
+        let outer_note_block = Block::default().title(title).borders(Borders::ALL);
         f.render_widget(outer_note_block, area);
 
-        let inner_note_paragraph = Paragraph::new(tui_data.note_content_preview.as_str())
-            .alignment(Alignment::Left);
-        f.render_widget(inner_note_paragraph, area.inner(&Margin {vertical: 2, horizontal: 2}));
+        let inner_note_paragraph =
+            Paragraph::new(tui_data.note_content_preview.as_str()).alignment(Alignment::Left);
+        f.render_widget(
+            inner_note_paragraph,
+            area.inner(&Margin {
+                vertical: 2,
+                horizontal: 2,
+            }),
+        );
     }
 
     fn render_message_block<B: Backend>(f: &mut Frame<B>, area: Rect, tui_data: &mut TuiData) {
@@ -272,17 +290,17 @@ impl BrnTui {
                 message_paragraph = Paragraph::new(tui_data.message.as_str())
                     .alignment(Alignment::Left)
                     .style(Style::default().fg(Color::LightRed));
-            },
+            }
             InputMode::Add | InputMode::Remove => {
                 message_paragraph = Paragraph::new(tui_data.edit_text.get_displayed_text())
                     .alignment(Alignment::Left)
                     .style(Style::default());
-            },
+            }
             InputMode::Search => {
                 message_paragraph = Paragraph::new(tui_data.search_text.get_displayed_text())
                     .alignment(Alignment::Left)
                     .style(Style::default());
-            },
+            }
         }
         f.render_widget(message_paragraph, area);
     }
@@ -310,7 +328,9 @@ impl BrnTui {
 
     fn show_note_content_preview(tui_data: &mut TuiData, settings: &mut Settings) {
         if let Some(selected_note_name) = &tui_data.note_list.selected_item() {
-            if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
+            if let Some(note_id) =
+                Database::get_note_id_where(NoteProperty::NoteName, selected_note_name)
+            {
                 match NoteUtility::get_content_of_note(&note_id, settings) {
                     Ok(note_content) => {
                         tui_data.note_content_preview = note_content;
@@ -323,9 +343,15 @@ impl BrnTui {
         }
     }
 
-    fn open_selected_note<B: Backend + Write>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) {
+    fn open_selected_note<B: Backend + Write>(
+        terminal: &mut Terminal<B>,
+        tui_data: &mut TuiData,
+        settings: &mut Settings,
+    ) {
         if let Some(selected_note_name) = tui_data.note_list.selected_item() {
-            if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
+            if let Some(note_id) =
+                Database::get_note_id_where(NoteProperty::NoteName, selected_note_name)
+            {
                 BrnTui::open_note(&note_id, terminal, tui_data, settings);
             };
         };
@@ -334,8 +360,12 @@ impl BrnTui {
     fn copy_selected_note_as_link(tui_data: &mut TuiData) {
         let mut clipboard_context: ClipboardContext = ClipboardProvider::new().unwrap();
         if let Some(selected_note_name) = tui_data.note_list.selected_item() {
-            if let Some(note_id) = Database::get_note_id_where(NoteProperty::NoteName, selected_note_name) {
-                if let Err(boxed_error) = clipboard_context.set_contents(format!("[[{}]] ", note_id)) {
+            if let Some(note_id) =
+                Database::get_note_id_where(NoteProperty::NoteName, selected_note_name)
+            {
+                if let Err(boxed_error) =
+                    clipboard_context.set_contents(format!("[[{}]] ", note_id))
+                {
                     tui_data.message = (*boxed_error).to_string();
                 }
             };
@@ -345,11 +375,9 @@ impl BrnTui {
     fn execute_search(tui_data: &mut TuiData, settings: &mut Settings) {
         let search_results = NoteUtility::search(&tui_data.search_text.get_content_text())
             .iter()
-            .map(|m| {
-                match Database::get_note_where_id(&m.note_id) {
-                    Some(note) => note.note_name,
-                    None => String::new(),
-                }
+            .map(|m| match Database::get_note_where_id(&m.note_id) {
+                Some(note) => note.note_name,
+                None => String::new(),
             })
             .collect();
         tui_data.note_list.replace_items_with(search_results);
@@ -357,7 +385,11 @@ impl BrnTui {
         BrnTui::show_note_content_preview(tui_data, settings);
     }
 
-    fn add_note<B: Backend + Write>(terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) {
+    fn add_note<B: Backend + Write>(
+        terminal: &mut Terminal<B>,
+        tui_data: &mut TuiData,
+        settings: &mut Settings,
+    ) {
         let note_type = match tui_data.edit_text.get_content_text().as_str() {
             "Q" | "q" => NoteType::Quote,
             "J" | "j" => NoteType::Journal,
@@ -368,17 +400,23 @@ impl BrnTui {
             Ok(None) => (),
             Ok(Some(note_id)) => {
                 BrnTui::open_note(&note_id, terminal, tui_data, settings);
-            },
+            }
             Err(error) => tui_data.message = "ERROR: ".to_string() + &error,
         };
     }
 
-    fn open_note<B: Backend + Write>(note_id: &str, terminal: &mut Terminal<B>, tui_data: &mut TuiData, settings: &mut Settings) {
+    fn open_note<B: Backend + Write>(
+        note_id: &str,
+        terminal: &mut Terminal<B>,
+        tui_data: &mut TuiData,
+        settings: &mut Settings,
+    ) {
         execute!(
             terminal.backend_mut(),
             LeaveAlternateScreen,
             DisableMouseCapture
-        ).unwrap();
+        )
+        .unwrap();
 
         match NoteUtility::open(&note_id, settings) {
             Ok(None) => (),
@@ -393,6 +431,7 @@ impl BrnTui {
             terminal.backend_mut(),
             EnterAlternateScreen,
             EnableMouseCapture
-        ).unwrap();
+        )
+        .unwrap();
     }
 }

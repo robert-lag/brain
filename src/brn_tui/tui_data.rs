@@ -1,7 +1,7 @@
-use crate::note_utility::NoteUtility;
-use crate::brn_tui::stateful_list::StatefulList;
 use crate::brn_tui::input_mode::InputMode;
 use crate::brn_tui::input_string::InputString;
+use crate::brn_tui::stateful_list::StatefulList;
+use crate::note_utility::NoteUtility;
 
 pub struct TuiData {
     pub note_list: StatefulList<String>,
@@ -31,6 +31,4 @@ impl Default for TuiData {
     }
 }
 
-impl TuiData {
-
-}
+impl TuiData {}
