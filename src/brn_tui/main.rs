@@ -8,7 +8,7 @@ use crate::settings::Settings;
 
 use clipboard::{ ClipboardProvider, ClipboardContext };
 use crossterm::{
-    event::{ self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode },
+    event::{ self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers },
     execute,
     terminal::{ disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen },
 };
@@ -123,8 +123,16 @@ impl BrnTui {
                                 tui_data.note_name_cache.clear();
                             }
                         },
-                        KeyCode::Backspace => {
+                        KeyCode::Backspace | KeyCode::Delete => {
                             tui_data.edit_text.pop();
+                        },
+                        KeyCode::Char('h') => {
+                            // Workaround to recognize `^H` control char as backspace
+                            if key.modifiers == KeyModifiers::CONTROL {
+                                tui_data.edit_text.pop();
+                            } else {
+                                tui_data.edit_text.push('h');
+                            }
                         },
                         KeyCode::Char(c) => {
                             tui_data.edit_text.push(c);
@@ -144,8 +152,16 @@ impl BrnTui {
                             }
                             tui_data.input_mode = InputMode::Normal;
                         },
-                        KeyCode::Backspace => {
+                        KeyCode::Backspace | KeyCode::Delete => {
                             tui_data.edit_text.pop();
+                        },
+                        KeyCode::Char('h') => {
+                            // Workaround to recognize `^H` control char as backspace
+                            if key.modifiers == KeyModifiers::CONTROL {
+                                tui_data.edit_text.pop();
+                            } else {
+                                tui_data.edit_text.push('h');
+                            }
                         },
                         KeyCode::Char(c) => {
                             tui_data.edit_text.push(c);
@@ -159,8 +175,16 @@ impl BrnTui {
                             BrnTui::execute_search(tui_data, settings);
                             tui_data.note_list_title = tui_data.search_text.get_displayed_text();
                         },
-                        KeyCode::Backspace => {
+                        KeyCode::Backspace | KeyCode::Delete => {
                             tui_data.search_text.pop();
+                        },
+                        KeyCode::Char('h') => {
+                            // Workaround to recognize `^H` control char as backspace
+                            if key.modifiers == KeyModifiers::CONTROL {
+                                tui_data.search_text.pop();
+                            } else {
+                                tui_data.search_text.push('h');
+                            }
                         },
                         KeyCode::Char(c) => {
                             tui_data.search_text.push(c);
